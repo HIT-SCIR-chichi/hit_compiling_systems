@@ -18,9 +18,9 @@
 <div id="container" style="width:100%;height:100%"></div>
 
 <script src="./base64.js"></script>
-<script src="./monaco/package/dev/vs/loader.js"></script>
+<script src="../monaco/package/dev/vs/loader.js"></script>
 <script>
-    require.config({paths: {'vs': './monaco/package/dev/vs'}});
+    require.config({paths: {'vs': '../monaco/package/dev/vs'}});
     require(['vs/editor/editor.main'], function () {
         monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
             noSemanticValidation: true,
