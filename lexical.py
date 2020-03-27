@@ -9,6 +9,7 @@ class Lexical:
         self.state_number = 0  # 状态数目
         self.start_state = 0  # 开始状态编号
         self.end_state = []  # 结束状态编号结合
+        self.key_word = []  # 关键字集合
         self.dfa = {}  # dfa转换表
         self.nfa = {}  # nfa转换表
         self.rules = {}  # 词法规则
@@ -19,6 +20,7 @@ class Lexical:
             self.state_number = dic['state_number']
             self.start_state = dic['start_state']
             self.end_state = dic['end_state']
+            self.key_word = dic['key_word']
             for idx in range(0, self.state_number):
                 self.dfa[idx] = dic[str(idx)]
 
