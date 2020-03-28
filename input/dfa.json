@@ -1,6 +1,32 @@
 {
   "state_number": 38,
   "start_state": 0,
+  "char": [
+    "/",
+    "*",
+    "%^",
+    "+",
+    "-",
+    "!",
+    "&",
+    "|",
+    ">",
+    "<",
+    "=",
+    "0",
+    "1234567",
+    "89",
+    "xX",
+    "abcdfABCDF",
+    "eE",
+    "_ghijklmnopqrstuvwyzGHIJKLMNOPQRSTUVWYZ",
+    ".",
+    ",:;[](){}",
+    "\n",
+    "'",
+    "other"
+  ],
+  "chars": "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ/*%^+-!&|><=_.,:;[](){}\n'",
   "end_state": {
     "1": "运算符+*^",
     "2": "运算符+",
@@ -66,7 +92,6 @@
     "volatile",
     "while"
   ],
-  "char": "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ/*%^+-!&|><=_.,:;[](){}\n'",
   "0": {
     "/": 30,
     "*": 1,
