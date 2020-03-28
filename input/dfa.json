@@ -66,6 +66,7 @@
     "volatile",
     "while"
   ],
+  "char": "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ/*%^+-!&|><=_.,:;[](){}\n'",
   "0": {
     "/": 30,
     "*": 1,
@@ -85,7 +86,7 @@
     "abcdfABCDF": 28,
     "eE": 28,
     "_ghijklmnopqrstuvwyzGHIJKLMNOPQRSTUVWYZ": 28,
-    ";,[](){}": 29,
+    ",:;[](){}": 29,
     "\n": 0,
     "'": 35
   },
@@ -213,7 +214,7 @@
     "eE": 31,
     "_ghijklmnopqrstuvwyzGHIJKLMNOPQRSTUVWYZ": 31,
     ".": 31,
-    ";:{}[]()": 31,
+    ",:;{}[]()": 31,
     "\n": 31,
     "'": 31,
     "other": 31
@@ -238,7 +239,7 @@
     "eE": 31,
     "_ghijklmnopqrstuvwyzGHIJKLMNOPQRSTUVWYZ": 31,
     ".": 31,
-    ";:{}[]()": 31,
+    "<:;{}[]()": 31,
     "\n": 31,
     "'": 31,
     "other": 31
@@ -263,7 +264,7 @@
     "eE": 34,
     "_ghijklmnopqrstuvwyzGHIJKLMNOPQRSTUVWYZ": 34,
     ".": 34,
-    ";:{}[]()": 34,
+    ",:;{}[]()": 34,
     "'": 34,
     "other": 34
   },
@@ -287,7 +288,7 @@
     "eE": 36,
     "_ghijklmnopqrstuvwyzGHIJKLMNOPQRSTUVWYZ": 36,
     ".": 36,
-    ";:{}[]()": 36,
+    ",:;{}[]()": 36,
     "\n": 36
   },
   "36": {
