@@ -1,9 +1,10 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+from PyQt5 import QtGui
 from PyQt5.QtWidgets import QMenuBar, QApplication, QMenu, QMainWindow, QAction, QFileDialog, QDialog, QLabel, \
     QTableWidget, QAbstractItemView, QTableWidgetItem, QHeaderView
 from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtGui import QIcon, QKeySequence, QFont
+from PyQt5.QtGui import QIcon, QKeySequence, QFont, QColor, QBrush
 from PyQt5.QtCore import QUrl, Qt
 from lexical import Lexical
 import sys
@@ -14,7 +15,6 @@ height = 540  # 窗口高度
 bar_height = 26  # 菜单栏和状态栏高度
 
 
-# todo 添加nfa与dfa转换
 class Editor(QWebEngineView):
     def __init__(self, par):
         super().__init__(par)
@@ -149,7 +149,7 @@ class MainWindow(QMainWindow):
 class LexicalWindow(QDialog):
     def __init__(self, lexical_res, dfa_table):
         super().__init__()
-        self.__res_table = QTableWidget(len(lexical_res) if len(lexical_res) > 0 else 1, 4, self)  # 词法分析表
+        self.__res_table = QTableWidget(len(lexical_res) if len(lexical_res) > 0 else 1, 3, self)  # 词法分析表
         self.__dfa_table = QTableWidget(dfa_table[0], len(dfa_table[1]), self)  # DFA转换表
         self.__result_label = QLabel('词法分析结果', self)
         self.__dfa_label = QLabel('DFA转换表', self)
@@ -174,18 +174,17 @@ class LexicalWindow(QDialog):
 
     def __set_res_table(self, lexical_res):
         self.__res_table.setGeometry(0, bar_height * 2, width / 2, height - bar_height * 2)
-        self.__res_table.setHorizontalHeaderLabels(['行号', '字符串', 'Token序列', '类型'])
+        self.__res_table.setHorizontalHeaderLabels(['行号', '字符串', 'Token'])
         self.__res_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.__res_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         for idx in lexical_res:
-            self.__res_table.setItem(idx, 0, QTableWidgetItem('0'))  # 行号
-            self.__res_table.setItem(idx, 1, QTableWidgetItem(lexical_res[idx][1]))  # 字符串
+            self.__res_table.setItem(idx, 0, QTableWidgetItem(str(lexical_res[idx][3])))  # 行号
+            self.__res_table.setItem(idx, 1, QTableWidgetItem(lexical_res[idx][0]))  # 字符串
             self.__res_table.setItem(idx, 2, QTableWidgetItem(
-                '<' + lexical_res[idx][0] + ' ,' + lexical_res[idx][1] + '>'))
-            self.__res_table.setItem(idx, 3, QTableWidgetItem(lexical_res[idx][0]))  # token类型
+                '<' + lexical_res[idx][1] + '  ,  ' + lexical_res[idx][2] + '>'))
 
     def __set_dfa_table(self, dfa_table):
-        state_num, all_char, dfa = dfa_table
+        state_num, all_char, dfa, end_state = dfa_table
         all_char = ['换行符' if char == '\n' else char for char in all_char]
         self.__dfa_table.setGeometry(width / 2, bar_height * 2, width / 2, height - bar_height * 2)
         self.__dfa_table.setHorizontalHeaderLabels(all_char)
@@ -193,9 +192,17 @@ class LexicalWindow(QDialog):
         self.__dfa_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.__dfa_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         for idx in range(0, state_num):
+            item = QTableWidgetItem(str(idx))
+            if idx in end_state:
+                item.setForeground(QColor(0, 0, 255))
+            self.__dfa_table.setVerticalHeaderItem(idx, item)
+        for idx in range(0, state_num):
             for idy, char in enumerate(all_char):
                 if idx in dfa and char in dfa[idx]:
-                    self.__dfa_table.setItem(idx, idy, QTableWidgetItem(str(dfa[idx][char])))  # 注意item值转换为str
+                    item = QTableWidgetItem(str(dfa[idx][char]))
+                    if dfa[idx][char] < 0:
+                        item.setForeground(QBrush(QColor(255, 0, 0)))
+                    self.__dfa_table.setItem(idx, idy, item)  # 注意item值转换为str
 
 
 if __name__ == "__main__":
