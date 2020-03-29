@@ -14,7 +14,6 @@ height = 540  # 窗口高度
 bar_height = 26  # 菜单栏和状态栏高度
 
 
-# todo 修改QDialog右上角的问号
 # todo 添加nfa与dfa转换
 class Editor(QWebEngineView):
     def __init__(self, par):
@@ -160,9 +159,10 @@ class LexicalWindow(QDialog):
         self.__set_dfa_table(dfa_table)
 
     def __set_ui(self):
-        self.resize(width, height)
         self.setWindowTitle('词法分析')
         self.setWindowIcon(QIcon('./help/system.ico'))
+        self.setFixedSize(width, height)
+        self.setWindowFlags(Qt.WindowMaximizeButtonHint | Qt.WindowMinimizeButtonHint | Qt.WindowCloseButtonHint)
 
         self.__result_label.setGeometry(0, 0, width / 2, bar_height * 2)
         self.__result_label.setFont(QFont('roman times', 15))
