@@ -1,6 +1,5 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-from PyQt5 import QtGui
 from PyQt5.QtWidgets import QMenuBar, QApplication, QMenu, QMainWindow, QAction, QFileDialog, QDialog, QLabel, \
     QTableWidget, QAbstractItemView, QTableWidgetItem, QHeaderView
 from PyQt5.QtWebEngineWidgets import QWebEngineView
@@ -61,7 +60,6 @@ class MainWindow(QMainWindow):
 
         self.lexical_menu = QMenu('词法分析', self.menu_bar)
         self.lexical_run_action = QAction('运行词法分析', shortcut='ctrl+f1', triggered=self.lexical_run)
-        self.lexical_rules_action = QAction('词法规则', triggered=self.lexical_rules)
         self.dfa_action = QAction('DFA转换表', triggered=self.dfa)
         self.nfa_action = QAction('NFA转换表', triggered=self.nfa)
 
@@ -73,6 +71,7 @@ class MainWindow(QMainWindow):
         self.init_menu_bar()
 
         self.lexical_window = None
+        self.dfa_window = None
 
     def init_menu_bar(self):
         self.menu_bar.setGeometry(0, 0, width, bar_height)
@@ -84,7 +83,6 @@ class MainWindow(QMainWindow):
 
         self.menu_bar.addMenu(self.lexical_menu)
         self.lexical_menu.addAction(self.lexical_run_action)
-        self.lexical_menu.addAction(self.lexical_rules_action)
         self.lexical_menu.addAction(self.dfa_action)
         self.lexical_menu.addAction(self.nfa_action)
 
@@ -125,19 +123,18 @@ class MainWindow(QMainWindow):
     def __lexical_run_callback(self, res):
         lexical = Lexical()
         lexical.get_dfa('./input/dfa.json')
-        dfa_table = lexical.get_dfa_table()
-        lexical_res = lexical.lexical_run(res)  # 词法分析的token序列
-        self.lexical_window = LexicalWindow(lexical_res, dfa_table)
+        res = lexical.lexical_run(res)  # 词法分析的token序列
+        self.lexical_window = LexicalWindow(res)
         self.lexical_window.show()
 
     def lexical_run(self):  # 运行词法分析
         self.editor.get_text(self.__lexical_run_callback)
 
-    def lexical_rules(self):  # 词法规则
-        pass
-
     def dfa(self):  # dfa转换表
-        pass
+        lexical = Lexical()
+        lexical.get_dfa('./input/dfa.json')
+        self.dfa_window = DFAWindow(lexical.get_dfa_table())
+        self.dfa_window.show()
 
     def nfa(self):  # nfa转换表
         pass
@@ -147,16 +144,15 @@ class MainWindow(QMainWindow):
 
 
 class LexicalWindow(QDialog):
-    def __init__(self, lexical_res, dfa_table):
+    def __init__(self, res):
         super().__init__()
-        self.__res_table = QTableWidget(len(lexical_res) if len(lexical_res) > 0 else 1, 3, self)  # 词法分析表
-        self.__dfa_table = QTableWidget(dfa_table[0], len(dfa_table[1]), self)  # DFA转换表
-        self.__result_label = QLabel('词法分析结果', self)
-        self.__dfa_label = QLabel('DFA转换表', self)
+        self.__res_table = QTableWidget(len(res[0]) if len(res[0]) > 0 else 1, 3, self)  # 词法分析表
+        self.__err_table = QTableWidget(len(res[1]) if len(res[1]) > 0 else 1, 3, self)  # DFA转换表
+        self.__res_label = QLabel('词法分析结果', self)
+        self.__err_label = QLabel('错误信息表', self)
 
         self.__set_ui()
-        self.__set_res_table(lexical_res)
-        self.__set_dfa_table(dfa_table)
+        self.__set_table(res)
 
     def __set_ui(self):
         self.setWindowTitle('词法分析')
@@ -164,45 +160,92 @@ class LexicalWindow(QDialog):
         self.setFixedSize(width, height)
         self.setWindowFlags(Qt.WindowMaximizeButtonHint | Qt.WindowMinimizeButtonHint | Qt.WindowCloseButtonHint)
 
-        self.__result_label.setGeometry(0, 0, width / 2, bar_height * 2)
-        self.__result_label.setFont(QFont('roman times', 15))
-        self.__result_label.setAlignment(Qt.AlignCenter)
+        self.__res_label.setGeometry(0, 0, width / 2, bar_height * 2)
+        self.__res_label.setFont(QFont('roman times', 15))
+        self.__res_label.setAlignment(Qt.AlignCenter)
 
-        self.__dfa_label.setGeometry(width / 2, 0, width / 2, bar_height * 2)
+        self.__err_label.setGeometry(width / 2, 0, width / 2, bar_height * 2)
+        self.__err_label.setFont(QFont('roman times', 15))
+        self.__err_label.setAlignment(Qt.AlignCenter)
+
+    def __set_table(self, res):
+        self.__res_table.setGeometry(0, bar_height * 2, width / 2, height - bar_height * 2)
+        self.__err_table.setGeometry(width / 2, bar_height * 2, width / 2, height - bar_height * 2)
+        self.__res_table.setHorizontalHeaderLabels(['行号', '字符串', 'Token'])
+        self.__err_table.setHorizontalHeaderLabels(['行号', '字符串', '错误'])
+        for idx, table in enumerate((self.__res_table, self.__err_table)):
+            table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+            for idy in res[idx]:
+                item = res[idx][idy]
+                table.setItem(idy, 0, QTableWidgetItem(str(item[3])))
+                table.setItem(idy, 1, QTableWidgetItem(item[0]))
+                table.setItem(idy, 2, QTableWidgetItem('<' + str(item[1]) + ' , ' + item[2] + '>'))
+            table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.__err_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+
+
+class DFAWindow(QDialog):
+    def __init__(self, dfa_table):
+        super().__init__()
+        self.__dfa_table = QTableWidget(dfa_table[0], len(dfa_table[1]), self)  # DFA转换表
+        self.__err_table = QTableWidget(len(dfa_table[4]), 2, self)  # 错误信息对照表
+
+        self.__dfa_label = QLabel('DFA转换表', self)
+        self.__err_label = QLabel('错误信息表', self)
+
+        self.__set_ui()
+        self.__set_dfa_table(dfa_table[0], dfa_table[1], dfa_table[2], dfa_table[3])
+        self.__set_err_table(dfa_table[4])
+
+    def __set_ui(self):
+        self.setWindowTitle('DFA')
+        self.setWindowIcon(QIcon('./help/system.ico'))
+        self.setFixedSize(width, height)
+        self.setWindowFlags(Qt.WindowMinimizeButtonHint | Qt.WindowCloseButtonHint)
+
+        self.__dfa_label.setGeometry(0, 0, width * 2 / 3, bar_height * 2)
         self.__dfa_label.setFont(QFont('roman times', 15))
         self.__dfa_label.setAlignment(Qt.AlignCenter)
 
-    def __set_res_table(self, lexical_res):
-        self.__res_table.setGeometry(0, bar_height * 2, width / 2, height - bar_height * 2)
-        self.__res_table.setHorizontalHeaderLabels(['行号', '字符串', 'Token'])
-        self.__res_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.__res_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
-        for idx in lexical_res:
-            self.__res_table.setItem(idx, 0, QTableWidgetItem(str(lexical_res[idx][3])))  # 行号
-            self.__res_table.setItem(idx, 1, QTableWidgetItem(lexical_res[idx][0]))  # 字符串
-            self.__res_table.setItem(idx, 2, QTableWidgetItem(
-                '<' + lexical_res[idx][1] + '  ,  ' + lexical_res[idx][2] + '>'))
+        self.__err_label.setGeometry(width * 2 / 3, 0, width / 3, bar_height * 2)
+        self.__err_label.setFont(QFont('roman times', 15))
+        self.__err_label.setAlignment(Qt.AlignCenter)
 
-    def __set_dfa_table(self, dfa_table):
-        state_num, all_char, dfa, end_state = dfa_table
-        all_char = ['换行符' if char == '\n' else char for char in all_char]
-        self.__dfa_table.setGeometry(width / 2, bar_height * 2, width / 2, height - bar_height * 2)
-        self.__dfa_table.setHorizontalHeaderLabels(all_char)
+    def __set_dfa_table(self, state_num, all_chars, dfa, end_state):
+        show_chars = []  # 将不可打印字符转换
+        for char in all_chars:
+            if char == '\n':
+                show_chars.append('换行符')
+            elif char == '\t ':
+                show_chars.append('制表符空格')
+            elif char == '\0':
+                show_chars.append('结束符')
+            else:
+                show_chars.append(char)
+        self.__dfa_table.setGeometry(0, bar_height * 2, width * 2 / 3, height - bar_height * 2)
+        self.__dfa_table.setHorizontalHeaderLabels(show_chars)
         self.__dfa_table.setVerticalHeaderLabels([str(idx) for idx in range(0, state_num)])  # 注意str不可少
         self.__dfa_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.__dfa_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         for idx in range(0, state_num):
-            item = QTableWidgetItem(str(idx))
             if idx in end_state:
-                item.setForeground(QColor(0, 0, 255))
-            self.__dfa_table.setVerticalHeaderItem(idx, item)
-        for idx in range(0, state_num):
-            for idy, char in enumerate(all_char):
+                self.__dfa_table.verticalHeaderItem(idx).setForeground(QColor(0, 0, 255))
+            for idy, char in enumerate(all_chars):
                 if idx in dfa and char in dfa[idx]:
                     item = QTableWidgetItem(str(dfa[idx][char]))
                     if dfa[idx][char] < 0:
                         item.setForeground(QBrush(QColor(255, 0, 0)))
                     self.__dfa_table.setItem(idx, idy, item)  # 注意item值转换为str
+
+    def __set_err_table(self, err_info):
+        self.__err_table.setGeometry(width * 2 / 3, bar_height * 2, width / 3, height - bar_height * 2)
+        self.__err_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.__err_table.verticalHeader().setVisible(False)
+        self.__err_table.setHorizontalHeaderLabels(['错误号', '错误信息'])
+        self.__err_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        for idx in range(0, len(err_info)):
+            self.__err_table.setItem(idx, 0, QTableWidgetItem(str(-idx - 1)))
+            self.__err_table.setItem(idx, 1, QTableWidgetItem(err_info[-idx - 1]))
 
 
 if __name__ == "__main__":
