@@ -70,8 +70,10 @@ class MainWindow(QMainWindow):
         self.about_menu = QMenu('关于', self.menu_bar)
         self.init_menu_bar()
 
+        self.lexical = None
         self.lexical_window = None
         self.dfa_window = None
+        self.nfa_window = None
 
     def init_menu_bar(self):
         self.menu_bar.setGeometry(0, 0, width, bar_height)
@@ -121,9 +123,9 @@ class MainWindow(QMainWindow):
         self.editor.get_text(self.__save_as_callback)
 
     def __lexical_run_callback(self, res):
-        lexical = Lexical()
-        lexical.get_dfa('./input/dfa.json')
-        res = lexical.lexical_run(res)  # 词法分析的token序列
+        self.lexical = self.lexical if self.lexical else Lexical()
+        self.lexical.get_dfa('./input/dfa.json')
+        res = self.lexical.lexical_run(str(res).replace('\r\n', '\n'))  # 词法分析的token序列，要将window换行符'\r\n'转换
         self.lexical_window = LexicalWindow(res)
         self.lexical_window.show()
 
@@ -131,13 +133,18 @@ class MainWindow(QMainWindow):
         self.editor.get_text(self.__lexical_run_callback)
 
     def dfa(self):  # dfa转换表
-        lexical = Lexical()
-        lexical.get_dfa('./input/dfa.json')
-        self.dfa_window = DFAWindow(lexical.get_dfa_table())
+        self.lexical = self.lexical if self.lexical else Lexical()
+        self.lexical.get_dfa('./input/dfa.json')
+        self.dfa_window = DFAWindow(self.lexical.get_dfa_table())
         self.dfa_window.show()
 
     def nfa(self):  # nfa转换表
-        pass
+        path = QFileDialog.getOpenFileName(self, '', os.getcwd() + '/input/nfa.json', 'Json(*.json)')[0]
+        if path:
+            self.lexical = self.lexical if self.lexical else Lexical()
+            self.lexical.get_nfa(path)
+            self.nfa_window = NFAWindow(self.lexical.nfa, self.lexical.nfa2dfa())
+            self.nfa_window.show()
 
     def more(self):  # 待实现
         pass
@@ -242,10 +249,86 @@ class DFAWindow(QDialog):
         self.__err_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.__err_table.verticalHeader().setVisible(False)
         self.__err_table.setHorizontalHeaderLabels(['错误号', '错误信息'])
-        self.__err_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.__err_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.__err_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         for idx in range(0, len(err_info)):
             self.__err_table.setItem(idx, 0, QTableWidgetItem(str(-idx - 1)))
             self.__err_table.setItem(idx, 1, QTableWidgetItem(err_info[-idx - 1]))
+
+
+class NFAWindow(QDialog):
+    def __init__(self, nfa, dfa):
+        super().__init__()
+        self.__nfa_table = QTableWidget(nfa['state_number'], len(nfa['char']) + 1, self)  # NFA转换表
+        self.__dfa_table = QTableWidget(len(dfa['states']), len(dfa['char']), self)  # DFA转换表
+        self.__info_table = QTableWidget(len(dfa['states']), 2, self)  # 变换前后状态信息对照表
+
+        self.__nfa_label = QLabel('NFA转换表', self)
+        self.__dfa_label = QLabel('DFA转换表', self)
+        self.__info_label = QLabel('状态信息表', self)
+
+        self.__set_ui()
+        self.__set_nfa_table(nfa['state_number'], nfa['end_state'], nfa['char'], nfa['nfa_table'])
+        self.__set_dfa_table(dfa['states'], dfa['end_states'], dfa['char'], dfa['dfa_table'])
+        self.__set_info_table(dfa['states'], dfa['end_states'])
+
+    def __set_ui(self):
+        self.setWindowTitle('NFA->DFA')
+        self.setWindowIcon(QIcon('./help/system.ico'))
+        self.setFixedSize(width, height)
+        self.setWindowFlags(Qt.WindowMinimizeButtonHint | Qt.WindowCloseButtonHint)
+
+        self.__nfa_label.setGeometry(0, 0, width / 3, bar_height * 2)
+        self.__nfa_label.setFont(QFont('roman times', 15))
+        self.__nfa_label.setAlignment(Qt.AlignCenter)
+
+        self.__dfa_label.setGeometry(width / 3, 0, width / 3, bar_height * 2)
+        self.__dfa_label.setFont(QFont('roman times', 15))
+        self.__dfa_label.setAlignment(Qt.AlignCenter)
+
+        self.__info_label.setGeometry(width * 2 / 3, 0, width / 3, bar_height * 2)
+        self.__info_label.setFont(QFont('roman times', 15))
+        self.__info_label.setAlignment(Qt.AlignCenter)
+
+    def __set_nfa_table(self, state_num, end_state, chars, table):
+        self.__nfa_table.setGeometry(0, bar_height * 2, width / 3, height - bar_height * 2)
+        self.__nfa_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.__nfa_table.setVerticalHeaderLabels([str(idx) for idx in range(0, state_num)])
+
+        show_chars = [char for char in chars]
+        show_chars.append('空串')
+        self.__nfa_table.setHorizontalHeaderLabels(show_chars)
+        for x in range(0, state_num):
+            if x in end_state:
+                self.__nfa_table.verticalHeaderItem(x).setForeground(QBrush(QColor(0, 255, 0)))
+            for y, char in enumerate(chars + ['\0']):
+                if x in table and char in table[x]:
+                    self.__nfa_table.setItem(x, y, QTableWidgetItem(' '.join('%s' % d for d in table[x][char])))
+
+    def __set_dfa_table(self, states, end_states, chars, table):
+        self.__dfa_table.setGeometry(width / 3, bar_height * 2, width / 3, height - bar_height * 2)
+        self.__dfa_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.__dfa_table.setVerticalHeaderLabels([str(idx) for idx in range(0, len(states))])
+        self.__dfa_table.setHorizontalHeaderLabels(chars)
+        for x in range(0, len(states)):
+            if x in end_states:
+                self.__dfa_table.verticalHeaderItem(x).setForeground(QBrush(QColor(0, 255, 0)))
+            for y, char in enumerate(chars):
+                if x in table and char in table[x]:
+                    self.__dfa_table.setItem(x, y, QTableWidgetItem(str(table[x][char])))
+
+    def __set_info_table(self, states, end_states):
+        self.__info_table.setGeometry(width * 2 / 3, bar_height * 2, width / 3, height - bar_height * 2)
+        self.__info_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.__info_table.verticalHeader().setVisible(False)
+        self.__info_table.setHorizontalHeaderLabels(['现DFA状态', '原NFA状态'])
+        self.__info_table.setVerticalHeaderLabels([str(idx) for idx in range(0, len(states))])
+        self.__info_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        for idx in range(len(states)):
+            self.__info_table.setItem(idx, 0, QTableWidgetItem(str(idx)))
+            if idx in end_states:
+                self.__info_table.item(idx, 0).setForeground(QBrush(QColor(0, 255, 255)))
+            self.__info_table.setItem(idx, 1, QTableWidgetItem(' '.join('%s' % d for d in states[idx])))
 
 
 if __name__ == "__main__":

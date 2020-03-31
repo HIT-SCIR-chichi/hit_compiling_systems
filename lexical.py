@@ -92,8 +92,7 @@ class Lexical:
                         dfa_table[unmark_state_idx] = {}
                     dfa_table[unmark_state_idx][char] = state_closure.index(u)
             unmark_state_idx = get_unmarked_state(state_flag)
-        end_states = list(filter(None, [idx if state in item else None for state in self.nfa['end_state']
-                                        for idx, item in enumerate(state_closure)]))  # 终结状态
+        end_states = [idx for state in self.nfa['end_state'] for idx, item in enumerate(state_closure) if state in item]
         return {'start_state': 0, 'states': state_closure, 'char': self.nfa['char'], 'end_states': end_states,
                 'dfa_table': dfa_table}
 
