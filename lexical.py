@@ -3,9 +3,6 @@
 import json
 
 
-# todo 代码文本中遇到'\0'需要转义为'\\0'(类似情况同样需要考虑，如\t \n \1等)
-# todo 添加dfa与nfa转换
-
 def get_line_num(text, idx) -> int:  # 获得text中idx位置的行号
     line_num = 1
     for idy, char in enumerate(text):
@@ -29,7 +26,6 @@ class Lexical:
         self.key_word = []  # 关键字集合
         self.dfa = {}  # dfa转换表
         self.nfa = {}  # nfa转换表
-        self.rules = {}  # 词法规则
 
     def get_dfa(self, dfa_path):  # 从文件中获取必要的dfa信息
         with open(dfa_path, 'r', encoding='utf-8') as dfa_file:
@@ -47,13 +43,59 @@ class Lexical:
 
     def get_nfa(self, nfa_path):  # 从文件中获取nfa
         with open(nfa_path, 'r', encoding='utf-8') as nfa_file:
-            self.nfa = json.loads(nfa_file.read())
+            dic = json.loads(nfa_file.read())
+            self.nfa['state_number'] = dic['state_number']  # 状态数
+            self.nfa['start_state'] = dic['start_state']  # 开始状态
+            self.nfa['end_state'] = {int(item[0]): item[1] for item in dic['end_state'].items()}  # 终结状态集合
+            self.nfa['null'] = '\0'  # 表示空串
+            self.nfa['char'] = [char if char != '\\0' else '\0' for char in dic['char']]  # 字符集
+            self.nfa['nfa_table'] = {int(idx): {char if char != '\\0' else '\0': dic['nfa_table'][idx][char] for char
+                                                in dic['nfa_table'][idx]} for idx in dic['nfa_table']}
 
-    def dfa2nfa(self):  # dfa转换为nfa转换表
-        pass
+    def get_closure(self, states: list) -> list:  # 获得ε闭包，输入为状态集
+        res, nfa_table = states.copy(), self.nfa['nfa_table']  # 求闭包的结果，进行浅层复制即可
+        while len(states) != 0:
+            top_state = states.pop()
+            if self.nfa['null'] in nfa_table[top_state]:  # 存在空转移
+                state_lst = nfa_table[top_state][self.nfa['null']]
+                for state in state_lst:
+                    if state not in res:
+                        states.append(state)  # 入栈
+                        res.append(state)  # 加入到闭包中
+        return res
 
     def nfa2dfa(self):  # nfa转换为dfa转换表
-        pass
+        def get_unmarked_state(flags: list):
+            for x, flag in enumerate(flags):
+                if not flag:
+                    return x
+
+        def move(states, a):
+            res_states = []
+            for state in states:
+                if state in self.nfa['nfa_table'] and a in self.nfa['nfa_table'][state]:
+                    res_states.extend(self.nfa['nfa_table'][state][a])
+            return res_states
+
+        dfa_table, start_closure = {}, self.get_closure([self.nfa['start_state']])  # nfa的开始状态组成的闭包
+        state_closure, state_flag = [start_closure], [False]  # 保存状态闭包,保存状态闭包的标志
+        unmark_state_idx = get_unmarked_state(state_flag)
+        while unmark_state_idx is not None:
+            state_closure_unmark, state_flag[unmark_state_idx] = state_closure[unmark_state_idx], True  # 加上标记
+            for char in self.nfa['char']:
+                u = self.get_closure(move(state_closure_unmark, char))
+                if len(u) > 0:
+                    if u not in state_closure:
+                        state_closure.append(u)
+                        state_flag.append(False)
+                    if unmark_state_idx not in dfa_table:
+                        dfa_table[unmark_state_idx] = {}
+                    dfa_table[unmark_state_idx][char] = state_closure.index(u)
+            unmark_state_idx = get_unmarked_state(state_flag)
+        end_states = list(filter(None, [idx if state in item else None for state in self.nfa['end_state']
+                                        for idx, item in enumerate(state_closure)]))  # 终结状态
+        return {'start_state': 0, 'states': state_closure, 'char': self.nfa['char'], 'end_states': end_states,
+                'dfa_table': dfa_table}
 
     def lexical_run(self, text):  # 基于DFA的词法分析，在text中加入了'\0'结束符
         res, error, text = {}, {}, text + '\0'  # 结果集合，错误集合，text加上结束符标志
@@ -99,6 +141,8 @@ class Lexical:
 
 def main():
     lexical = Lexical()
+    lexical.get_nfa('./input/nfa.json')
+    lexical.nfa2dfa()
     lexical.get_dfa('./input/dfa.json')
     res = lexical.lexical_run(open('./input/wrong_test.c', 'r', encoding='utf-8').read())
     for key in res[1]:
