@@ -107,12 +107,12 @@ class Lexical:
             next_char = text[idx]
             last_str, idx = last_str + next_char if next_char != '\0' else last_str, idx + 1
             next_state = self.__get_next_state(state, next_char)  # 如果存在则获得下一个状态
-            if next_state is not None:  # 更新状态
-                state = next_state
+            state = next_state if next_state is not None else state  # 更新状态
             if next_state is None or state < 0:
                 if state < 0:
                     line_num = get_line_num(text, idx - 1)
-                    res[len(res)] = last_str, state, self.err_info[state], line_num  # 错误信息
+                    if last_str[len(last_str) - 1] in '\r\n\t':
+                        last_str = last_str[:-1]
                     error[len(error)] = last_str, state, self.err_info[state], line_num
                 if end_save[0] != -12:
                     idx = end_save[2]  # 进行状态回退
@@ -123,6 +123,8 @@ class Lexical:
                         res[len(res)] = end_save[1], 'IDN', end_save[1], line_num
                     else:
                         res[len(res)] = end_save[1], end_save[1].upper(), '_', line_num
+                if end_save[0] == -12 and state < 0 and len(last_str) > 1:
+                    idx -= 1
                 state, end_save, last_str = 0, (-12, '', -1), ''
         return res, error
 
@@ -136,17 +138,3 @@ class Lexical:
 
     def get_dfa_table(self):
         return self.state_number, self.char, self.dfa, self.end_state, self.err_info
-
-
-def main():
-    lexical = Lexical()
-    lexical.get_nfa('./input/nfa.json')
-    lexical.nfa2dfa()
-    lexical.get_dfa('./input/dfa.json')
-    res = lexical.lexical_run(open('./input/wrong_test.c', 'r', encoding='utf-8').read())
-    for key in res[1]:
-        print(res[1][key])
-
-
-if __name__ == '__main__':
-    main()

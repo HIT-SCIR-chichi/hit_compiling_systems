@@ -124,7 +124,7 @@ class MainWindow(QMainWindow):
 
     def __lexical_run_callback(self, res):
         self.lexical = self.lexical if self.lexical else Lexical()
-        self.lexical.get_dfa('./input/dfa.json')
+        self.lexical.get_dfa('./help/dfa.json')
         res = self.lexical.lexical_run(str(res).replace('\r\n', '\n'))  # 词法分析的token序列，要将window换行符'\r\n'转换
         self.lexical_window = LexicalWindow(res)
         self.lexical_window.show()
@@ -134,12 +134,12 @@ class MainWindow(QMainWindow):
 
     def dfa(self):  # dfa转换表
         self.lexical = self.lexical if self.lexical else Lexical()
-        self.lexical.get_dfa('./input/dfa.json')
+        self.lexical.get_dfa('./help/dfa.json')
         self.dfa_window = DFAWindow(self.lexical.get_dfa_table())
         self.dfa_window.show()
 
     def nfa(self):  # nfa转换表
-        path = QFileDialog.getOpenFileName(self, '', os.getcwd() + '/input/nfa.json', 'Json(*.json)')[0]
+        path = QFileDialog.getOpenFileName(self, '', os.getcwd() + '/help/nfa.json', 'Json(*.json)')[0]
         if path:
             self.lexical = self.lexical if self.lexical else Lexical()
             self.lexical.get_nfa(path)
@@ -165,15 +165,12 @@ class LexicalWindow(QDialog):
         self.setWindowTitle('词法分析')
         self.setWindowIcon(QIcon('./help/system.ico'))
         self.setFixedSize(width, height)
-        self.setWindowFlags(Qt.WindowMaximizeButtonHint | Qt.WindowMinimizeButtonHint | Qt.WindowCloseButtonHint)
+        self.setWindowFlags(Qt.WindowMinimizeButtonHint | Qt.WindowCloseButtonHint)
 
-        self.__res_label.setGeometry(0, 0, width / 2, bar_height * 2)
-        self.__res_label.setFont(QFont('roman times', 15))
-        self.__res_label.setAlignment(Qt.AlignCenter)
-
-        self.__err_label.setGeometry(width / 2, 0, width / 2, bar_height * 2)
-        self.__err_label.setFont(QFont('roman times', 15))
-        self.__err_label.setAlignment(Qt.AlignCenter)
+        for idx, label in enumerate([self.__res_label, self.__err_label]):
+            label.setGeometry(idx * width / 2, 0, width / 2, bar_height * 2)
+            label.setFont(QFont('roman times', 15))
+            label.setAlignment(Qt.AlignCenter)
 
     def __set_table(self, res):
         self.__res_table.setGeometry(0, bar_height * 2, width / 2, height - bar_height * 2)
@@ -181,7 +178,10 @@ class LexicalWindow(QDialog):
         self.__res_table.setHorizontalHeaderLabels(['行号', '字符串', 'Token'])
         self.__err_table.setHorizontalHeaderLabels(['行号', '字符串', '错误'])
         for idx, table in enumerate((self.__res_table, self.__err_table)):
-            table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+            table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+            table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+            table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+            table.verticalHeader().setVisible(False)
             for idy in res[idx]:
                 item = res[idx][idy]
                 table.setItem(idy, 0, QTableWidgetItem(str(item[3])))
@@ -209,14 +209,10 @@ class DFAWindow(QDialog):
         self.setWindowIcon(QIcon('./help/system.ico'))
         self.setFixedSize(width, height)
         self.setWindowFlags(Qt.WindowMinimizeButtonHint | Qt.WindowCloseButtonHint)
-
-        self.__dfa_label.setGeometry(0, 0, width * 2 / 3, bar_height * 2)
-        self.__dfa_label.setFont(QFont('roman times', 15))
-        self.__dfa_label.setAlignment(Qt.AlignCenter)
-
-        self.__err_label.setGeometry(width * 2 / 3, 0, width / 3, bar_height * 2)
-        self.__err_label.setFont(QFont('roman times', 15))
-        self.__err_label.setAlignment(Qt.AlignCenter)
+        for idx, label in enumerate([self.__dfa_label, self.__err_label]):
+            label.setGeometry(idx * width * 2 / 3, 0, width * (1 if idx else 2) / 3, bar_height * 2)
+            label.setFont(QFont('roman times', 15))
+            label.setAlignment(Qt.AlignCenter)
 
     def __set_dfa_table(self, state_num, all_chars, dfa, end_state):
         show_chars = []  # 将不可打印字符转换
@@ -278,17 +274,10 @@ class NFAWindow(QDialog):
         self.setFixedSize(width, height)
         self.setWindowFlags(Qt.WindowMinimizeButtonHint | Qt.WindowCloseButtonHint)
 
-        self.__nfa_label.setGeometry(0, 0, width / 3, bar_height * 2)
-        self.__nfa_label.setFont(QFont('roman times', 15))
-        self.__nfa_label.setAlignment(Qt.AlignCenter)
-
-        self.__dfa_label.setGeometry(width / 3, 0, width / 3, bar_height * 2)
-        self.__dfa_label.setFont(QFont('roman times', 15))
-        self.__dfa_label.setAlignment(Qt.AlignCenter)
-
-        self.__info_label.setGeometry(width * 2 / 3, 0, width / 3, bar_height * 2)
-        self.__info_label.setFont(QFont('roman times', 15))
-        self.__info_label.setAlignment(Qt.AlignCenter)
+        for idx, label in enumerate([self.__nfa_label, self.__dfa_label, self.__info_label]):
+            label.setGeometry(idx * width / 3, 0, width / 3, bar_height * 2)
+            label.setFont(QFont('roman times', 15))
+            label.setAlignment(Qt.AlignCenter)
 
     def __set_nfa_table(self, state_num, end_state, chars, table):
         self.__nfa_table.setGeometry(0, bar_height * 2, width / 3, height - bar_height * 2)
