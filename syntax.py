@@ -52,11 +52,60 @@ class Syntax:
                         self.first[non_terminal].append(self.empty_str)  # 若产生式最终可以推导出空串，则将空串加入到First集
                         flag = True
 
+    def get_str_first(self, symbols: list) -> list:
+        """获取文法符号串的First集.
+
+        要求syntax对象已经执行过get_first()方法，如果参数symbols为空列表[]，返回值为空列表[].
+        Args:
+            symbols: 文法符号串.
+        Returns:
+            文法符号串symbols的First集
+        """
+        res = []
+        if symbols:
+            for symbol in symbols:
+                res.extend(item for item in self.first[symbol] if item not in res and item != self.empty_str)
+                if self.empty_str in self.first[symbol]:
+                    continue
+                else:
+                    break
+            if self.empty_str in self.first[symbol] and self.empty_str not in res:
+                res.append(self.empty_str)
+        return res
+
+    def get_follow(self):
+        """获得文法中所有非终结符的Follow集.
+
+        要求syntax对象已经执行过get_first()方法.
+        """
+        self.follow = {non_terminal: [] for non_terminal in self.non_terminals}  # 初始化Follow集
+        self.follow[self.start_symbol].append('$')  # 将$符号加入到文法开始符号的Follow集中
+        flag = True  # 迭代更新标志，用于判断是否仍需要一轮迭代
+        while flag:
+            flag = False
+            for non_terminal in self.non_terminals:
+                for production in self.rules[non_terminal]:  # 遍历每一个产生式
+                    if production != [self.empty_str]:  # 空产生式不会更新Follow集
+                        for idx, symbol in enumerate(production):
+                            if symbol in self.non_terminals:  # 跳过终结符
+                                str_first = self.get_str_first(production[idx + 1:])
+                                for item in str_first:
+                                    if item != self.empty_str and item not in self.follow[symbol]:
+                                        self.follow[symbol].append(item)  # 加入symbol后所有文法符号的First集中未出现的元素
+                                        flag = True
+                                if not str_first or self.empty_str in str_first:  # 后续文法符号可以产生空串或者无后续符号
+                                    for item in self.follow[non_terminal]:
+                                        if item not in self.follow[symbol]:
+                                            self.follow[symbol].append(item)
+                                            flag = True
+
 
 def main():
     syntax = Syntax()
     syntax.read_syntax('help/syntax.json')
     syntax.get_first()
+    syntax.get_follow()
+    print(syntax.follow)
 
 
 if __name__ == '__main__':
