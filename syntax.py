@@ -14,6 +14,7 @@ class Syntax:
         self.first = {}  # 所有文法符号的First集合
         self.follow = {}  # 所有文法符号的Follow集合
         self.select = []  # 所有产生式的Select集合
+        self.prediction_table = {}  # 预测分析表{non_terminal: {terminal: production}}
 
     def read_syntax(self, json_path: str):
         with open(json_path, 'r', encoding='utf-8') as f:
@@ -22,9 +23,9 @@ class Syntax:
             self.empty_str = js_dic['empty_string']
             self.terminals = js_dic['terminals']
             self.non_terminals = js_dic['non_terminals']
-            for key, values in js_dic['rules'].items():
+            for non_terminal, values in js_dic['rules'].items():
                 for value in values:
-                    self.rules.append((key, value.split()))
+                    self.rules.append((non_terminal, value.split()))
 
     def get_first(self):
         """获得文法中所有符号的first集."""
@@ -115,6 +116,44 @@ class Syntax:
                     self.select.append(
                         set(item for item in str_first if item != self.empty_str).union(self.follow[non_terminal]))
 
+    def get_prediction_table(self):
+        """构造LL(1)预测分析表."""
+        for idx, (non_terminal, rule) in enumerate(self.rules):
+            if non_terminal not in self.prediction_table:
+                self.prediction_table[non_terminal] = {terminal: idx for terminal in self.select[idx]}
+            else:
+                for terminal in self.select[idx]:
+                    if terminal in self.prediction_table[non_terminal]:
+                        return False
+                    self.prediction_table[non_terminal][terminal] = idx
+
+    def syntax_run(self, text: list):
+        """运行语法分析.
+
+        要求LL(1)预测分析表已经构建完成.
+
+        Args:
+            text: 待分析的输入符号列表，序号越大代表输入符号越靠后（右）
+        Returns:
+            若遇到错误，返回False；否则返回None
+        """
+        text, stack = text + ['$'], [self.start_symbol, '$']  # 输入符号，分析栈
+        while stack:
+            if stack[0] == text[0]:  # 栈顶元素与待分析串第一个元素相同，执行出栈操作
+                stack.pop(0)
+                text = text[1:]
+            elif stack[0] in self.terminals:
+                return False
+            elif text[0] not in self.prediction_table[stack[0]]:  # 对应表项不存在
+                return False
+            elif self.prediction_table[stack[0]][text[0]] == 'ERROR':  # 对应表项条目为报错信息
+                return False
+            else:  # 栈顶非终结符与当前输入终结符找到对应表项
+                symbols = self.rules[self.prediction_table[stack[0]][text[0]]][1]  # 产生式右部符号
+                print(stack[0] + '->' + ''.join(symbols))
+                stack.pop(0)
+                stack = stack if symbols == [self.empty_str] else symbols + stack
+
 
 def main():
     syntax = Syntax()
@@ -122,6 +161,8 @@ def main():
     syntax.get_first()
     syntax.get_follow()
     syntax.get_select()
+    syntax.get_prediction_table()
+    syntax.syntax_run(['id', '+', 'id', '*', 'id'])
 
 
 if __name__ == '__main__':
