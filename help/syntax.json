@@ -1,0 +1,38 @@
+{
+  "start_symbol": "E",
+  "empty_string": "null",
+  "terminals": [
+    "+",
+    "*",
+    "(",
+    ")",
+    "id"
+  ],
+  "non_terminals": [
+    "E",
+    "E'",
+    "T",
+    "T'",
+    "F"
+  ],
+  "rules": {
+    "E": [
+      "T E'"
+    ],
+    "E'": [
+      "+ T E'",
+      "null"
+    ],
+    "T": [
+      "F T'"
+    ],
+    "T'": [
+      "* F T'",
+      "null"
+    ],
+    "F": [
+      "( E )",
+      "id"
+    ]
+  }
+}
