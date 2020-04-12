@@ -1,6 +1,7 @@
 {
   "start_symbol": "E",
   "empty_string": "null",
+  "syn_token": "syn",
   "terminals": [
     "+",
     "*",
