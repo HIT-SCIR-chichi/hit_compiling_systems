@@ -5,7 +5,10 @@ from PyQt5.QtWidgets import QMenuBar, QApplication, QMenu, QMainWindow, QAction,
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtGui import QIcon, QKeySequence, QFont, QColor, QBrush
 from PyQt5.QtCore import QUrl, Qt
+
+import syntax_ui
 from lexical import Lexical
+from syntax import Syntax
 import sys
 import os
 
@@ -63,38 +66,41 @@ class MainWindow(QMainWindow):
         self.dfa_action = QAction('DFA转换表', triggered=self.dfa)
         self.nfa_action = QAction('NFA转换表', triggered=self.nfa)
 
-        self.more_action = QAction('待实现', triggered=self.more)
         self.syntax_menu = QMenu('语法分析', self.menu_bar)
+        self.syntax_run_action = QAction('运行语法分析', shortcut='ctrl+f2', triggered=self.syntax_run)
+        self.grammar_action = QAction('语法信息', triggered=self.grammar)
+        self.lst_action = QAction('更多信息', triggered=self.more)
 
         self.semantic_menu = QMenu('语义分析', self.menu_bar)
         self.about_menu = QMenu('关于', self.menu_bar)
+        self.more_action = QAction('待实现', triggered=self.more)
         self.init_menu_bar()
 
         self.lexical = None
         self.lexical_window = None
         self.dfa_window = None
         self.nfa_window = None
+        self.syntax = None
+        self.grammar_window = None
 
     def init_menu_bar(self):
         self.menu_bar.setGeometry(0, 0, width, bar_height)
-
-        self.menu_bar.addMenu(self.file_menu)
+        for menu_bar in [self.file_menu, self.lexical_menu, self.syntax_menu, self.semantic_menu, self.about_menu]:
+            self.menu_bar.addMenu(menu_bar)
         self.file_menu.addAction(self.open_file_action)
         self.file_menu.addAction(self.save_file_action)
         self.file_menu.addAction(self.save_as_action)
 
-        self.menu_bar.addMenu(self.lexical_menu)
         self.lexical_menu.addAction(self.lexical_run_action)
         self.lexical_menu.addAction(self.dfa_action)
         self.lexical_menu.addAction(self.nfa_action)
 
-        self.menu_bar.addMenu(self.syntax_menu)
-        self.syntax_menu.addAction(self.more_action)
+        self.syntax_menu.addAction(self.syntax_run_action)
+        self.syntax_menu.addAction(self.grammar_action)
+        self.syntax_menu.addAction(self.lst_action)
 
-        self.menu_bar.addMenu(self.semantic_menu)
         self.semantic_menu.addAction(self.more_action)
 
-        self.menu_bar.addMenu(self.about_menu)
         self.about_menu.addAction(self.more_action)
 
     def open_file(self):  # 打开文件
@@ -145,6 +151,30 @@ class MainWindow(QMainWindow):
             self.lexical.get_nfa(path)
             self.nfa_window = NFAWindow(self.lexical.nfa, self.lexical.nfa2dfa())
             self.nfa_window.show()
+
+    def __syntax_run_callback(self, res):
+        self.lexical = self.lexical if self.lexical else Lexical()
+        self.lexical.get_dfa('./help/dfa.json')  # 读取DFA转换表
+        lexical_res = self.lexical.lexical_run(str(res).replace('\r\n', '\n'))  # 得到词法分析的token序列
+        self.syntax = self.syntax if self.syntax else Syntax()
+        self.syntax.read_syntax('./help/syntax.json')
+
+    def syntax_run(self):  # 运行语法分析
+        self.editor.get_text(self.__syntax_run_callback)
+
+    def grammar(self):  # 展示语法分析中可以计算的集合和表
+        self.syntax = self.syntax if self.syntax else Syntax()
+        self.syntax.read_syntax('./help/syntax.json')  # 加载文法
+        self.syntax.get_first()  # 计算First集
+        self.syntax.get_follow()  # 计算Follow集
+        self.syntax.get_select()  # 计算select集
+        self.syntax.get_predict()  # 计算预测分析表
+
+        self.grammar_window = QDialog()
+        ui = syntax_ui.Ui_dialog()
+        ui.setupUi(self.grammar_window)
+        set_grammar_table(ui, self.syntax)
+        self.grammar_window.show()
 
     def more(self):  # 待实现
         pass
@@ -311,13 +341,40 @@ class NFAWindow(QDialog):
         self.__info_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.__info_table.verticalHeader().setVisible(False)
         self.__info_table.setHorizontalHeaderLabels(['现DFA状态', '原NFA状态'])
-        self.__info_table.setVerticalHeaderLabels([str(idx) for idx in range(0, len(states))])
         self.__info_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         for idx in range(len(states)):
             self.__info_table.setItem(idx, 0, QTableWidgetItem(str(idx)))
             if idx in end_states:
                 self.__info_table.item(idx, 0).setForeground(QBrush(QColor(0, 255, 255)))
             self.__info_table.setItem(idx, 1, QTableWidgetItem(' '.join('%s' % d for d in states[idx])))
+
+
+def set_grammar_table(ui: syntax_ui.Ui_dialog, syntax: Syntax):
+    ui.grammar_table.setRowCount(len(syntax.rules))  # 设置文法展示表和Select集的表
+    ui.grammar_table.setVerticalHeaderLabels([str(idx) for idx in range(len(syntax.rules))])
+    for idx, (rule, select_lst) in enumerate(zip(syntax.rules, syntax.select)):
+        ui.grammar_table.setItem(idx, 0, QTableWidgetItem(rule[0] + '->' + ''.join(rule[1])))  # 产生式
+        ui.grammar_table.setItem(idx, 1, QTableWidgetItem(' '.join(select_lst)))  # 对应的Select集
+
+    ui.lst_table.setRowCount(len(syntax.non_terminals))  # 设置First集和Follow集的展示表
+    for idx, non_term in enumerate(syntax.non_terminals):
+        ui.lst_table.setItem(idx, 0, QTableWidgetItem(non_term))
+        ui.lst_table.setItem(idx, 1, QTableWidgetItem(' '.join(syntax.first[non_term])))
+        ui.lst_table.setItem(idx, 2, QTableWidgetItem(' '.join(syntax.follow[non_term])))
+
+    terminals = syntax.terminals + ['$']  # 设置预测分析表
+    print(syntax.terminals)
+    ui.predict_table.setColumnCount(len(terminals))
+    ui.predict_table.setRowCount(len(syntax.non_terminals))
+    ui.predict_table.setHorizontalHeaderLabels(terminals)
+    ui.predict_table.setVerticalHeaderLabels(syntax.non_terminals)
+    for idx, non_term in enumerate(syntax.non_terminals):
+        for idy, term in enumerate(terminals):
+            if term in syntax.predict[non_term]:
+                item = QTableWidgetItem(str(syntax.predict[non_term][term]))
+                ui.predict_table.setItem(idx, idy, item)
+                if item.text() == syntax.syn_token:
+                    item.setForeground(QBrush(QColor(0, 255, 0)))
 
 
 if __name__ == "__main__":

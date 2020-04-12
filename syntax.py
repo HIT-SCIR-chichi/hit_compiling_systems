@@ -120,7 +120,7 @@ class Syntax:
                     self.select.append(
                         set(item for item in str_first if item != self.empty_str).union(self.follow[non_terminal]))
 
-    def get_prediction_table(self):
+    def get_predict(self):
         """构造LL(1)预测分析表.
 
         若不是LL(1)文法，则返回False；否则计算相应的预测分析表.
@@ -188,7 +188,7 @@ def main():
     syntax.get_first()
     syntax.get_follow()
     syntax.get_select()
-    syntax.get_prediction_table()
+    syntax.get_predict()
     syntax.syntax_run(['+', '*', '+', 'id'])
 
 
