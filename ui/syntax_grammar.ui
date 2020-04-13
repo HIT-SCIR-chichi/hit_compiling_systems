@@ -80,6 +80,12 @@
       </item>
       <item>
        <widget class="QTableWidget" name="grammar_table">
+        <property name="verticalScrollMode">
+         <enum>QAbstractItemView::ScrollPerPixel</enum>
+        </property>
+        <property name="horizontalScrollMode">
+         <enum>QAbstractItemView::ScrollPerPixel</enum>
+        </property>
         <attribute name="verticalHeaderVisible">
          <bool>true</bool>
         </attribute>
@@ -139,6 +145,12 @@
       </item>
       <item>
        <widget class="QTableWidget" name="lst_table">
+        <property name="verticalScrollMode">
+         <enum>QAbstractItemView::ScrollPerPixel</enum>
+        </property>
+        <property name="horizontalScrollMode">
+         <enum>QAbstractItemView::ScrollPerPixel</enum>
+        </property>
         <attribute name="verticalHeaderVisible">
          <bool>false</bool>
         </attribute>
@@ -202,7 +214,14 @@
        </widget>
       </item>
       <item>
-       <widget class="QTableWidget" name="predict_table"/>
+       <widget class="QTableWidget" name="predict_table">
+        <property name="verticalScrollMode">
+         <enum>QAbstractItemView::ScrollPerPixel</enum>
+        </property>
+        <property name="horizontalScrollMode">
+         <enum>QAbstractItemView::ScrollPerPixel</enum>
+        </property>
+       </widget>
       </item>
      </layout>
     </widget>

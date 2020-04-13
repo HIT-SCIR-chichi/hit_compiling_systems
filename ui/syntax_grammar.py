@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'syntax_ui.ui'
+# Form implementation generated from reading ui file 'syntax_grammar.ui'
 #
 # Created by: PyQt5 UI code generator 5.14.1
 #
@@ -39,6 +39,8 @@ class Ui_dialog(object):
         self.grammar_label.setObjectName("grammar_label")
         self.verticalLayout.addWidget(self.grammar_label)
         self.grammar_table = QtWidgets.QTableWidget(self.frame)
+        self.grammar_table.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
+        self.grammar_table.setHorizontalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
         self.grammar_table.setObjectName("grammar_table")
         self.grammar_table.setColumnCount(2)
         self.grammar_table.setRowCount(0)
@@ -65,6 +67,8 @@ class Ui_dialog(object):
         self.lst_label.setObjectName("lst_label")
         self.verticalLayout_2.addWidget(self.lst_label)
         self.lst_table = QtWidgets.QTableWidget(self.frame_2)
+        self.lst_table.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
+        self.lst_table.setHorizontalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
         self.lst_table.setObjectName("lst_table")
         self.lst_table.setColumnCount(3)
         self.lst_table.setRowCount(0)
@@ -93,6 +97,8 @@ class Ui_dialog(object):
         self.predict_label.setObjectName("predict_label")
         self.verticalLayout_3.addWidget(self.predict_label)
         self.predict_table = QtWidgets.QTableWidget(self.frame_3)
+        self.predict_table.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
+        self.predict_table.setHorizontalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
         self.predict_table.setObjectName("predict_table")
         self.predict_table.setColumnCount(0)
         self.predict_table.setRowCount(0)

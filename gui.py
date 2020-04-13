@@ -1,14 +1,14 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+from PyQt5 import QtGui
 from PyQt5.QtWidgets import QMenuBar, QApplication, QMenu, QMainWindow, QAction, QFileDialog, QDialog, QLabel, \
-    QTableWidget, QAbstractItemView, QTableWidgetItem, QHeaderView
+    QTableWidget, QAbstractItemView, QTableWidgetItem, QHeaderView, QTreeWidgetItem, QStyleFactory
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtGui import QIcon, QKeySequence, QFont, QColor, QBrush
 from PyQt5.QtCore import QUrl, Qt
-
-import syntax_ui
 from lexical import Lexical
 from syntax import Syntax
+from ui import syntax_grammar, syntax_res
 import sys
 import os
 
@@ -76,11 +76,10 @@ class MainWindow(QMainWindow):
         self.more_action = QAction('待实现', triggered=self.more)
         self.init_menu_bar()
 
-        self.lexical = None
         self.lexical_window = None
         self.dfa_window = None
         self.nfa_window = None
-        self.syntax = None
+        self.syntax_window = None
         self.grammar_window = None
 
     def init_menu_bar(self):
@@ -129,9 +128,9 @@ class MainWindow(QMainWindow):
         self.editor.get_text(self.__save_as_callback)
 
     def __lexical_run_callback(self, res):
-        self.lexical = self.lexical if self.lexical else Lexical()
-        self.lexical.get_dfa('./help/dfa.json')
-        res = self.lexical.lexical_run(str(res).replace('\r\n', '\n'))  # 词法分析的token序列，要将window换行符'\r\n'转换
+        lexical = Lexical()
+        lexical.get_dfa('./help/dfa.json')
+        res = lexical.lexical_run(str(res).replace('\r\n', '\n'))  # 词法分析的token序列，要将window换行符'\r\n'转换
         self.lexical_window = LexicalWindow(res)
         self.lexical_window.show()
 
@@ -139,41 +138,44 @@ class MainWindow(QMainWindow):
         self.editor.get_text(self.__lexical_run_callback)
 
     def dfa(self):  # dfa转换表
-        self.lexical = self.lexical if self.lexical else Lexical()
-        self.lexical.get_dfa('./help/dfa.json')
-        self.dfa_window = DFAWindow(self.lexical.get_dfa_table())
+        lexical = Lexical()
+        lexical.get_dfa('./help/dfa.json')
+        self.dfa_window = DFAWindow(lexical.get_dfa_table())
         self.dfa_window.show()
 
     def nfa(self):  # nfa转换表
         path = QFileDialog.getOpenFileName(self, '', os.getcwd() + '/help/nfa.json', 'Json(*.json)')[0]
         if path:
-            self.lexical = self.lexical if self.lexical else Lexical()
-            self.lexical.get_nfa(path)
-            self.nfa_window = NFAWindow(self.lexical.nfa, self.lexical.nfa2dfa())
+            lexical = Lexical()
+            lexical.get_nfa(path)
+            self.nfa_window = NFAWindow(lexical.nfa, lexical.nfa2dfa())
             self.nfa_window.show()
 
     def __syntax_run_callback(self, res):
-        self.lexical = self.lexical if self.lexical else Lexical()
-        self.lexical.get_dfa('./help/dfa.json')  # 读取DFA转换表
-        lexical_res = self.lexical.lexical_run(str(res).replace('\r\n', '\n'))  # 得到词法分析的token序列
-        self.syntax = self.syntax if self.syntax else Syntax()
-        self.syntax.read_syntax('./help/syntax.json')
+        lexical = Lexical()
+        lexical.get_dfa('./help/dfa.json')  # 读取DFA转换表
+        lexical_res = lexical.lexical_run(str(res).replace('\r\n', '\n'))  # 得到词法分析的token序列
+        syntax = Syntax()
+        syntax.syntax_init('./help/syntax.json')
+        syntax_lst = syntax.syntax_run(['id', '+', 'id', '*', 'id'])
+        self.syntax_window = QDialog()
+        ui = syntax_res.Ui_Dialog()
+        ui.setupUi(self.syntax_window)
+        self.syntax_window.setWindowIcon(QIcon('./help/system.ico'))
+        set_syntax_window(ui, syntax, syntax_lst)
+        self.syntax_window.show()
 
     def syntax_run(self):  # 运行语法分析
         self.editor.get_text(self.__syntax_run_callback)
 
     def grammar(self):  # 展示语法分析中可以计算的集合和表
-        self.syntax = self.syntax if self.syntax else Syntax()
-        self.syntax.read_syntax('./help/syntax.json')  # 加载文法
-        self.syntax.get_first()  # 计算First集
-        self.syntax.get_follow()  # 计算Follow集
-        self.syntax.get_select()  # 计算select集
-        self.syntax.get_predict()  # 计算预测分析表
+        syntax = Syntax()
+        syntax.syntax_init('./help/syntax.json')
 
         self.grammar_window = QDialog()
-        ui = syntax_ui.Ui_dialog()
+        ui = syntax_grammar.Ui_dialog()
         ui.setupUi(self.grammar_window)
-        set_grammar_table(ui, self.syntax)
+        set_grammar_table(ui, syntax)
         self.grammar_window.show()
 
     def more(self):  # 待实现
@@ -319,7 +321,7 @@ class NFAWindow(QDialog):
         self.__nfa_table.setHorizontalHeaderLabels(show_chars)
         for x in range(0, state_num):
             if x in end_state:
-                self.__nfa_table.verticalHeaderItem(x).setForeground(QBrush(QColor(0, 255, 0)))
+                self.__nfa_table.verticalHeaderItem(x).setForeground(QBrush(QColor(0, 0, 255)))
             for y, char in enumerate(chars + ['\0']):
                 if x in table and char in table[x]:
                     self.__nfa_table.setItem(x, y, QTableWidgetItem(' '.join('%s' % d for d in table[x][char])))
@@ -331,7 +333,7 @@ class NFAWindow(QDialog):
         self.__dfa_table.setHorizontalHeaderLabels(chars)
         for x in range(0, len(states)):
             if x in end_states:
-                self.__dfa_table.verticalHeaderItem(x).setForeground(QBrush(QColor(0, 255, 0)))
+                self.__dfa_table.verticalHeaderItem(x).setForeground(QBrush(QColor(0, 0, 255)))
             for y, char in enumerate(chars):
                 if x in table and char in table[x]:
                     self.__dfa_table.setItem(x, y, QTableWidgetItem(str(table[x][char])))
@@ -345,11 +347,11 @@ class NFAWindow(QDialog):
         for idx in range(len(states)):
             self.__info_table.setItem(idx, 0, QTableWidgetItem(str(idx)))
             if idx in end_states:
-                self.__info_table.item(idx, 0).setForeground(QBrush(QColor(0, 255, 255)))
+                self.__info_table.item(idx, 0).setForeground(QBrush(QColor(0, 0, 255)))
             self.__info_table.setItem(idx, 1, QTableWidgetItem(' '.join('%s' % d for d in states[idx])))
 
 
-def set_grammar_table(ui: syntax_ui.Ui_dialog, syntax: Syntax):
+def set_grammar_table(ui: syntax_grammar.Ui_dialog, syntax: Syntax):
     ui.grammar_table.setRowCount(len(syntax.rules))  # 设置文法展示表和Select集的表
     ui.grammar_table.setVerticalHeaderLabels([str(idx) for idx in range(len(syntax.rules))])
     for idx, (rule, select_lst) in enumerate(zip(syntax.rules, syntax.select)):
@@ -363,7 +365,6 @@ def set_grammar_table(ui: syntax_ui.Ui_dialog, syntax: Syntax):
         ui.lst_table.setItem(idx, 2, QTableWidgetItem(' '.join(syntax.follow[non_term])))
 
     terminals = syntax.terminals + ['$']  # 设置预测分析表
-    print(syntax.terminals)
     ui.predict_table.setColumnCount(len(terminals))
     ui.predict_table.setRowCount(len(syntax.non_terminals))
     ui.predict_table.setHorizontalHeaderLabels(terminals)
@@ -374,7 +375,28 @@ def set_grammar_table(ui: syntax_ui.Ui_dialog, syntax: Syntax):
                 item = QTableWidgetItem(str(syntax.predict[non_term][term]))
                 ui.predict_table.setItem(idx, idy, item)
                 if item.text() == syntax.syn_token:
-                    item.setForeground(QBrush(QColor(0, 255, 0)))
+                    item.setForeground(QBrush(QColor(0, 0, 255)))
+
+
+def set_syntax_window(ui: syntax_res.Ui_Dialog, syntax: Syntax, syntax_lst: list):
+    ui.syntax_table.setRowCount(len(syntax_lst))  # 设置语法分析过程表
+    ui.syntax_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+    for idx, value in enumerate(syntax_lst):
+        for idy in range(3):
+            item = QTableWidgetItem(value[idy])
+            item.setTextAlignment(Qt.AlignRight if idy != 2 else Qt.AlignCenter)
+            if not value[3]:
+                item.setForeground(QBrush(QColor(255, 0, 0)))
+            ui.syntax_table.setItem(idx, idy, item)
+
+    tree_stack, item_stack = [syntax.tree], [QTreeWidgetItem(ui.syntax_tree)]
+    while tree_stack:
+        tree_node, item_node = tree_stack.pop(0), item_stack.pop(0)
+        item_node.setText(0, tree_node.symbol)
+        tree_stack = tree_node.children + tree_stack
+        item_stack = [QTreeWidgetItem(item_node) for child in tree_node.children] + item_stack
+    ui.syntax_tree.expandAll()
+    ui.syntax_tree.setStyle(QStyleFactory.create("windows"))  # 显示树上的虚线
 
 
 if __name__ == "__main__":
