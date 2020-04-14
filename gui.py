@@ -1,6 +1,5 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-from PyQt5 import QtGui
 from PyQt5.QtWidgets import QMenuBar, QApplication, QMenu, QMainWindow, QAction, QFileDialog, QDialog, QLabel, \
     QTableWidget, QAbstractItemView, QTableWidgetItem, QHeaderView, QTreeWidgetItem, QStyleFactory
 from PyQt5.QtWebEngineWidgets import QWebEngineView

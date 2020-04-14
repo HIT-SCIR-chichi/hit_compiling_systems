@@ -138,6 +138,7 @@ class Syntax:
             else:
                 for terminal in self.select[idx]:
                     if terminal in self.predict[non_terminal]:
+                        print('当前文法非LL(1)文法')
                         return False
                     self.predict[non_terminal][terminal] = idx
         for non_term, follow in self.follow.items():
@@ -177,6 +178,19 @@ class Syntax:
                 node_stack = node_stack if symbols == [self.empty_str] else child_nodes + node_stack
         return res  # 返回分析过程
 
+    def get_closure(self, item_lst):  # LR(1)文法获得项目及闭包
+        while True:
+            for item in item_lst:  # 遍历项目集中的每一个项
+                pass
+
+    def get_item_set(self):  # 获得LR(1)文法中所有的项目
+        res = []
+        for non_tem, rule in self.rules:
+            if rule == [self.empty_str]:  # 空产生式只有一个项目
+                res.append((0, [self.empty_str]))
+            else:
+                res.extend([(idx, rule) for idx in range(len(rule))])
+
 
 class SyntaxNode:
 
@@ -193,13 +207,9 @@ class SyntaxNode:
 
 def main():
     syntax = Syntax()
-    syntax.read_syntax('help/syntax.json')
-    syntax.get_first()
-    syntax.get_follow()
-    syntax.get_select()
-    syntax.get_predict()
-    print(syntax.syntax_run(['id', '+', 'id', '*', 'id']))
-    print('')
+    syntax.read_syntax('help/syntax_lr.json')
+    syntax.get_item_set()
+    syntax.get_closure([])
 
 
 if __name__ == '__main__':
