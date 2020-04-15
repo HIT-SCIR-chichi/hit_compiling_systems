@@ -1,190 +1,30 @@
 {
   "start_symbol": "P",
   "empty_string": "null",
-  "syn_token": "syn",
   "terminals": [
-    "proc",
-    "int",
-    "real",
-    "char",
-    "record",
     "id",
-    "if",
-    "else",
-    "while",
-    "call",
-    "return",
-    "switch",
-    "for",
-    "{",
-    "}",
-    "=",
-    ";",
-    ",",
-    "(",
-    ")",
-    "[",
-    "++",
-    "--",
-    "case",
-    "default",
-    "digit",
-    "+",
-    "<",
-    "<=",
-    "==",
-    "!=",
-    ">",
-    ">=",
-    "and",
-    "or",
-    "then",
-    "do",
-    "*",
-    "not",
-    "true",
-    "false"
+    "*"
   ],
   "non_terminals": [
-    "P",
-    "D",
-    "A",
-    "X",
-    "C",
+    "S'",
     "S",
-    "E",
-    "E'",
-    "G",
-    "G'",
-    "F",
     "L",
-    "L'",
-    "V",
-    "N",
-    "B",
-    "B'",
-    "H",
-    "H'",
-    "I",
-    "relop",
-    "M",
-    "M'",
-    "Elist",
-    "Elist'"
+    "R"
   ],
   "rules": {
-    "P": [
-      "D P",
-      "S P ",
-      "null"
-    ],
-    "D": [
-      "X C id A ;",
-      "record id { P }",
-      "proc X id ( M ) { P }"
-    ],
-    "A": [
-      "= F A",
-      ", id A",
-      "null"
-    ],
-    "X": [
-      "int",
-      "real",
-      "char"
-    ],
-    "C": [
-      "[ num ] C",
-      "null"
+    "S'": [
+      "S"
     ],
     "S": [
-      "L = E ;",
-      "if B then S else S",
-      "while B do S",
-      "for ( id = E ; B ; id V ) { S }",
-      "switch ( id ) { N default : S }",
-      "call id ( Elist ) ;",
-      "return E ;"
-    ],
-    "E": [
-      "G E'"
-    ],
-    "E'": [
-      "+ G E'",
-      "null"
-    ],
-    "G": [
-      "F G'"
-    ],
-    "G'": [
-      "* F G'",
-      "null"
-    ],
-    "F": [
-      "( E )",
-      "id",
-      "digit",
-      "char"
+      "L = R",
+      "R"
     ],
     "L": [
-      "id L'"
+      "* R",
+      "id"
     ],
-    "L'": [
-      "[ num ] L'",
-      "null"
-    ],
-    "V": [
-      "++",
-      "--"
-    ],
-    "N": [
-      "case digit : S N",
-      "null"
-    ],
-    "B": [
-      "H B'"
-    ],
-    "B'": [
-      "or H B'",
-      "null"
-    ],
-    "H": [
-      "I H'"
-    ],
-    "H'": [
-      "and I H'",
-      "null"
-    ],
-    "I": [
-      "not B",
-      "( B )",
-      "E relop E",
-      "true",
-      "false"
-    ],
-    "relop": [
-      "<",
-      "<=",
-      "==",
-      "!=",
-      ">",
-      ">="
-    ],
-    "M": [
-      "X id M'",
-      "null"
-    ],
-    "M'": [
-      ", X id M'",
-      "null"
-    ],
-    "Elist": [
-      "E",
-      "Elist'"
-    ],
-    "Elist'": [
-      ", E Elist'",
-      "null"
+    "R": [
+      "L"
     ]
   }
 }

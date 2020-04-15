@@ -8,22 +8,18 @@ class Syntax:
     def __init__(self):
         self.start_symbol = ''  # 文法开始符号
         self.empty_str = ''  # 文法中的空串表示
-        self.syn_token = ''  # 同步词法单元标识
         self.terminals = []  # 终结符号集合
         self.non_terminals = []  # 非终结符集合
         self.rules = []  # 所有的文法规则
         self.first = {}  # 所有文法符号的First集合
         self.follow = {}  # 所有文法符号的Follow集合
-        self.select = []  # 所有产生式的Select集合
-        self.predict = {}  # 预测分析表{non_terminal: {terminal: production}}
+        self.item_set = []  # 文法的所有项目:[(idx, idy, [])]，其中idx指的是文法规则编号，idy指的是原点所在的位置,[]为展望符集合
         self.tree = None  # 语法分析树
 
     def syntax_init(self, json_path: str):
         self.read_syntax(json_path)
         self.get_first()
         self.get_follow()
-        self.get_select()
-        self.get_predict()
 
     def read_syntax(self, json_path: str):
         with open(json_path, 'r', encoding='utf-8') as f:
@@ -31,7 +27,6 @@ class Syntax:
             self.start_symbol = js_dic['start_symbol']
             self.empty_str = js_dic['empty_string']
             self.terminals = js_dic['terminals']
-            self.syn_token = js_dic['syn_token']
             self.non_terminals = js_dic['non_terminals']
             for non_terminal, values in js_dic['rules'].items():
                 for value in values:
@@ -111,85 +106,24 @@ class Syntax:
                                         self.follow[symbol].append(item)
                                         flag = True
 
-    def get_select(self):
-        """获得文法中所有产生式的Select集.
-
-        要求syntax对象已经执行过get_first()和get_follow()方法.
-        """
-        for idx, (non_terminal, production) in enumerate(self.rules):  # 遍历每一个产生式
-            if production == [self.empty_str]:  # 空产生式的select集为左部的Follow集
-                self.select.append(self.follow[non_terminal])
-            else:
-                str_first = self.get_str_first(production)  # 计算A->α中的α的First集
-                if self.empty_str not in str_first:
-                    self.select.append(str_first)
-                else:  # First集中存在空串，则select集为(First(α)-{空串}) ∪ Follow(A)，这里采用set的union方法操作
-                    self.select.append(
-                        set(item for item in str_first if item != self.empty_str).union(self.follow[non_terminal]))
-
-    def get_predict(self):
-        """构造LL(1)预测分析表.
-
-        若不是LL(1)文法，则返回False；否则计算相应的预测分析表.
-        """
-        for idx, (non_terminal, rule) in enumerate(self.rules):
-            if non_terminal not in self.predict:
-                self.predict[non_terminal] = {terminal: idx for terminal in self.select[idx]}
-            else:
-                for terminal in self.select[idx]:
-                    if terminal in self.predict[non_terminal]:
-                        print('当前文法非LL(1)文法')
-                        return False
-                    self.predict[non_terminal][terminal] = idx
-        for non_term, follow in self.follow.items():
-            for term in follow:
-                if term not in self.predict[non_term]:
-                    self.predict[non_term][term] = self.syn_token
-
-    def syntax_run(self, text: list):
-        """运行语法分析.
-
-        要求LL(1)预测分析表已经构建完成，若遇到错误，执行错误处理.
-
-        Args:
-            text: 待分析的输入符号列表，序号越大代表输入符号越靠后（右）
-        """
-        text, stack, node_stack, res, sepa = text + ['$'], [self.start_symbol, '$'], [self.tree, '$'], [], ' '
-        while stack:
-            if stack[0] == text[0]:  # 栈顶元素与待分析串第一个元素相同，执行出栈操作
-                res.append((sepa.join(stack), sepa.join(text), '出栈', True))
-                stack, text, node_stack = stack[1:], text[1:], node_stack[1:]
-            elif stack[0] in self.terminals:  # 栈顶终结符与当前输入符号不匹配
-                res.append((sepa.join(stack), sepa.join(text), '栈顶终结符与输入不符，出栈', False))
-                stack.pop(0)
-            elif text[0] not in self.predict[stack[0]]:  # 对应表项不存在
-                res.append((sepa.join(stack), sepa.join(text), '无表项，忽略输入符号', False))
-                text.pop(0)
-            elif self.predict[stack[0]][text[0]] == self.syn_token:  # 对应表项条目为同步此法单元，则需要弹出符号栈栈顶非终结符
-                res.append((sepa.join(stack), sepa.join(text), '表项为syn，出栈', False))
-                stack.pop(0)
-            else:  # 栈顶非终结符与当前输入终结符找到对应表项
-                symbols = self.rules[self.predict[stack[0]][text[0]]][1]  # 产生式右部符号
-                res.append((sepa.join(stack), sepa.join(text), stack[0] + ' -> ' + ' '.join(symbols), True))
-                child_nodes = [SyntaxNode(symbol) for symbol in symbols]
-                stack.pop(0)
-                node_stack.pop(0).add(child_nodes)
-                stack = stack if symbols == [self.empty_str] else symbols + stack
-                node_stack = node_stack if symbols == [self.empty_str] else child_nodes + node_stack
-        return res  # 返回分析过程
-
-    def get_closure(self, item_lst):  # LR(1)文法获得项目及闭包
-        while True:
-            for item in item_lst:  # 遍历项目集中的每一个项
-                pass
-
-    def get_item_set(self):  # 获得LR(1)文法中所有的项目
-        res = []
-        for non_tem, rule in self.rules:
-            if rule == [self.empty_str]:  # 空产生式只有一个项目
-                res.append((0, [self.empty_str]))
-            else:
-                res.extend([(idx, rule) for idx in range(len(rule))])
+    def get_closure(self):  # 获得文法项目集闭包
+        self.item_set.append([(0, 0, '$')])
+        flag = True
+        while flag:
+            flag = False
+            for idx, item_lst in enumerate(self.item_set):  # 遍历项目集中的每一个项目集列表
+                for item in item_lst:  # 遍历已有项目集中的每一个项目，（idx,idy,terminal）
+                    non_term, symbol_lst = self.rules[item[0]]  # non_term为非终结符，symbol_lst为右侧文法符号
+                    symbol = symbol_lst[item[1]]  # 点号后的文法符号
+                    if item[1] == len(symbol_lst) or symbol in self.terminals:  # 点号在最后位置，为规约状态；点号后面为终结符
+                        continue
+                    for idy, rule in enumerate(self.rules):
+                        if rule[0] == symbol:  # 获得该文法符号的产生式
+                            str_first = self.get_str_first(symbol_lst[idx + 1:] + [item[2]])
+                            project = (idx, 0, str_first)  # 得到一个项目
+                            if project in self.item_set[idx]:
+                                self.item_set[idx].append(project)
+                                flag = True
 
 
 class SyntaxNode:
@@ -207,9 +141,11 @@ class SyntaxNode:
 
 def main():
     syntax = Syntax()
-    syntax.read_syntax('help/syntax_lr.json')
-    syntax.get_item_set()
-    syntax.get_closure([])
+    syntax.read_syntax('help/syntax.json')
+    syntax.get_first()
+    syntax.get_follow()
+    syntax.get_closure()
+    print(self.item_set)
 
 
 if __name__ == '__main__':
