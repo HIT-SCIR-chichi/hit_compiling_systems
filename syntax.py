@@ -1,5 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
+import copy
 import json
 
 
@@ -13,7 +14,8 @@ class Syntax:
         self.rules = []  # 所有的文法规则
         self.first = {}  # 所有文法符号的First集合
         self.follow = {}  # 所有文法符号的Follow集合
-        self.item_set = []  # 文法的所有项目:[(idx, idy, [])]，其中idx指的是文法规则编号，idy指的是原点所在的位置,[]为展望符集合
+        self.item_collection = []  # 文法的所有项目:[(idx, idy, a)]，其中idx指的是文法规则编号，idy指的是原点所在的位置,a为展望符
+        self.table = {}  # LR(1)预测分析表
         self.tree = None  # 语法分析树
 
     def syntax_init(self, json_path: str):
@@ -106,24 +108,75 @@ class Syntax:
                                         self.follow[symbol].append(item)
                                         flag = True
 
-    def get_closure(self):  # 获得文法项目集闭包
-        self.item_set.append([(0, 0, '$')])
-        flag = True
-        while flag:
-            flag = False
-            for idx, item_lst in enumerate(self.item_set):  # 遍历项目集中的每一个项目集列表
-                for item in item_lst:  # 遍历已有项目集中的每一个项目，（idx,idy,terminal）
-                    non_term, symbol_lst = self.rules[item[0]]  # non_term为非终结符，symbol_lst为右侧文法符号
-                    symbol = symbol_lst[item[1]]  # 点号后的文法符号
-                    if item[1] == len(symbol_lst) or symbol in self.terminals:  # 点号在最后位置，为规约状态；点号后面为终结符
-                        continue
-                    for idy, rule in enumerate(self.rules):
-                        if rule[0] == symbol:  # 获得该文法符号的产生式
-                            str_first = self.get_str_first(symbol_lst[idx + 1:] + [item[2]])
-                            project = (idx, 0, str_first)  # 得到一个项目
-                            if project in self.item_set[idx]:
-                                self.item_set[idx].append(project)
-                                flag = True
+    def get_closure(self, item_lst: list) -> list:  # LR(1)文法项目集闭包
+        res = item_lst.copy()
+        for item in res:  # 遍历项目集中的每一个项目，（idx,idy,terminal）
+            non_term, symbol_lst = self.rules[item[0]]  # non_term为非终结符，symbol_lst为右侧文法符号
+            if item[1] < len(symbol_lst) and symbol_lst[item[1]] not in self.terminals:  # 点号在最后位置，为规约状态；点号后面为终结符
+                symbol = symbol_lst[item[1]]  # 点号后的文法符号
+                for idy, rule in enumerate(self.rules):
+                    if rule[0] == symbol:  # 获得该文法符号的产生式
+                        str_first = self.get_str_first(symbol_lst[item[1] + 1:] + [item[2]])
+                        for first in str_first:
+                            project = (idy, 0, first)  # 得到一个项目
+                            if project not in res:
+                                res.append(project)
+        return res
+
+    def goto(self, item_lst: list, symbol: str):  # LR(1)文法的GoTo函数
+        res = []
+        for item in item_lst:  # 遍历项目集中的每一项
+            non_term, symbol_lst = self.rules[item[0]]  # non_term为非终结符，symbol_lst为右侧文法符号
+            if item[1] != len(symbol_lst) and symbol == symbol_lst[item[1]]:
+                res.append((item[0], item[1] + 1, item[2]))  # 将后继项目加入到goto集合中
+        return self.get_closure(res)
+
+    def get_item_collection(self):  # LR(1)文法的项集族
+        self.item_collection.append(self.get_closure([(0, 0, '$')]))  # 加入初始的项目集闭包3
+        for idx, item_set in enumerate(self.item_collection):  # 遍历项集族中的每一个项目集
+            self.table[idx] = {}
+            for symbol in self.non_terminals + self.terminals:  # 对于每一个文法符号
+                goto_set = self.goto(item_set, symbol)
+                if goto_set:
+                    if goto_set not in self.item_collection:
+                        index = len(self.item_collection)
+                        self.item_collection.append(goto_set)
+                    else:
+                        index = self.item_collection.index(goto_set)
+                    self.table[idx][symbol] = index
+
+    def get_table(self):
+        goto_tbl = copy.deepcopy(self.table)
+        for idx, item_set in enumerate(self.item_collection):  # 遍历每一个项目集
+            for item in item_set:  # 遍历每一个项目
+                non_term, symbol_lst = self.rules[item[0]]  # non_term为非终结符，symbol_lst为右侧文法符号
+                if item[1] == len(symbol_lst) and non_term == self.start_symbol and item[2] == '$':
+                    self.table[idx][item[2]] = 'acc'  # 成功接收
+                elif item[1] == len(symbol_lst) and non_term != self.start_symbol:
+                    self.table[idx][item[2]] = 'r ' + str(item[0])
+                elif symbol_lst[item[1]] in self.terminals:
+                    self.table[idx][symbol_lst[item[1]]] = 's ' + str(goto_tbl[idx][symbol_lst[item[1]]])
+
+    def syntax_run(self, tokens: list):  # LR(1)文法运行语法分析
+        states_stack, input_stack = [0], tokens + ['$']  # 状态栈、输入栈
+        while True:
+            top_token, top_state = input_stack[0], states_stack[0]
+            if top_token not in self.table[top_state]:
+                print('错误')
+                return
+            op = self.table[top_state][top_token].split()
+            if op[0] == 'acc':
+                print('语法分析成功')
+                return True
+            if op[0] == 's':  # 移入
+                print('移入\t', top_token)
+                states_stack.insert(0, int(op[1]))
+                input_stack.pop(0)
+            elif op[0] == 'r':  # 规约
+                non_term, symbols = self.rules[int(op[1])]
+                states_stack = states_stack[len(symbols):]
+                states_stack.insert(0, self.table[states_stack[0]][non_term])
+                print('规约\t', non_term + ' -> ' + ' '.join(symbols))
 
 
 class SyntaxNode:
@@ -144,8 +197,9 @@ def main():
     syntax.read_syntax('help/syntax.json')
     syntax.get_first()
     syntax.get_follow()
-    syntax.get_closure()
-    print(self.item_set)
+    syntax.get_item_collection()
+    syntax.get_table()
+    syntax.syntax_run(['*', '*', 'id', '=', '*', 'id'])
 
 
 if __name__ == '__main__':

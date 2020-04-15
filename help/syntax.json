@@ -1,9 +1,11 @@
 {
-  "start_symbol": "P",
+  "start_symbol": "S'",
   "empty_string": "null",
   "terminals": [
     "id",
-    "*"
+    "*",
+    "=",
+    "$"
   ],
   "non_terminals": [
     "S'",
