@@ -91,7 +91,7 @@
         </property>
         <column>
          <property name="text">
-          <string>符号栈</string>
+          <string>状态栈</string>
          </property>
         </column>
         <column>
@@ -238,6 +238,11 @@
         <attribute name="headerVisible">
          <bool>false</bool>
         </attribute>
+        <column>
+         <property name="text">
+          <string notr="true">1</string>
+         </property>
+        </column>
        </widget>
       </item>
      </layout>

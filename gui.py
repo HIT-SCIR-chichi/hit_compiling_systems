@@ -156,7 +156,7 @@ class MainWindow(QMainWindow):
         lexical_res = lexical.lexical_run(str(res).replace('\r\n', '\n'))  # 得到词法分析的token序列
         syntax = Syntax()
         syntax.syntax_init('./help/syntax.json')
-        syntax_lst = syntax.syntax_run(['id', '+', 'id', '*', 'id'])
+        syntax_lst = syntax.syntax_run(['*', '*', 'id', '=', '*', 'id'])
         self.syntax_window = QDialog()
         ui = syntax_res.Ui_Dialog()
         ui.setupUi(self.syntax_window)
@@ -353,9 +353,8 @@ class NFAWindow(QDialog):
 def set_grammar_table(ui: syntax_grammar.Ui_dialog, syntax: Syntax):
     ui.grammar_table.setRowCount(len(syntax.rules))  # 设置文法展示表和Select集的表
     ui.grammar_table.setVerticalHeaderLabels([str(idx) for idx in range(len(syntax.rules))])
-    for idx, (rule, select_lst) in enumerate(zip(syntax.rules, syntax.select)):
+    for idx, rule in enumerate(syntax.rules):
         ui.grammar_table.setItem(idx, 0, QTableWidgetItem(rule[0] + '->' + ''.join(rule[1])))  # 产生式
-        ui.grammar_table.setItem(idx, 1, QTableWidgetItem(' '.join(select_lst)))  # 对应的Select集
 
     ui.lst_table.setRowCount(len(syntax.non_terminals))  # 设置First集和Follow集的展示表
     for idx, non_term in enumerate(syntax.non_terminals):
@@ -363,18 +362,20 @@ def set_grammar_table(ui: syntax_grammar.Ui_dialog, syntax: Syntax):
         ui.lst_table.setItem(idx, 1, QTableWidgetItem(' '.join(syntax.first[non_term])))
         ui.lst_table.setItem(idx, 2, QTableWidgetItem(' '.join(syntax.follow[non_term])))
 
-    terminals = syntax.terminals + ['$']  # 设置预测分析表
-    ui.predict_table.setColumnCount(len(terminals))
-    ui.predict_table.setRowCount(len(syntax.non_terminals))
-    ui.predict_table.setHorizontalHeaderLabels(terminals)
-    ui.predict_table.setVerticalHeaderLabels(syntax.non_terminals)
-    for idx, non_term in enumerate(syntax.non_terminals):
-        for idy, term in enumerate(terminals):
-            if term in syntax.predict[non_term]:
-                item = QTableWidgetItem(str(syntax.predict[non_term][term]))
-                ui.predict_table.setItem(idx, idy, item)
-                if item.text() == syntax.syn_token:
+    symbols = syntax.terminals + syntax.non_terminals
+    symbols.remove(syntax.start_symbol)
+    ui.table.setColumnCount(len(symbols))  # 设置分析表
+    ui.table.setRowCount(len(syntax.non_terminals))
+    ui.table.setHorizontalHeaderLabels(symbols)
+    ui.table.setVerticalHeaderLabels(syntax.non_terminals)
+    # ui.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+    for idx, state in enumerate(syntax.table):
+        for idy, symbol in enumerate(symbols):
+            if symbol in syntax.table[state]:
+                item = QTableWidgetItem(str(syntax.table[state][symbol]))
+                if syntax.table[state][symbol] == 'acc':
                     item.setForeground(QBrush(QColor(0, 0, 255)))
+                ui.table.setItem(idx, idy, item)
 
 
 def set_syntax_window(ui: syntax_res.Ui_Dialog, syntax: Syntax, syntax_lst: list):
@@ -384,8 +385,6 @@ def set_syntax_window(ui: syntax_res.Ui_Dialog, syntax: Syntax, syntax_lst: list
         for idy in range(3):
             item = QTableWidgetItem(value[idy])
             item.setTextAlignment(Qt.AlignRight if idy != 2 else Qt.AlignCenter)
-            if not value[3]:
-                item.setForeground(QBrush(QColor(255, 0, 0)))
             ui.syntax_table.setItem(idx, idy, item)
 
     tree_stack, item_stack = [syntax.tree], [QTreeWidgetItem(ui.syntax_tree)]

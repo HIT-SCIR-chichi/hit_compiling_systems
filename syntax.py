@@ -22,6 +22,8 @@ class Syntax:
         self.read_syntax(json_path)
         self.get_first()
         self.get_follow()
+        self.get_item_collection()
+        self.get_table()
 
     def read_syntax(self, json_path: str):
         with open(json_path, 'r', encoding='utf-8') as f:
@@ -158,25 +160,44 @@ class Syntax:
                     self.table[idx][symbol_lst[item[1]]] = 's ' + str(goto_tbl[idx][symbol_lst[item[1]]])
 
     def syntax_run(self, tokens: list):  # LR(1)文法运行语法分析
-        states_stack, input_stack = [0], tokens + ['$']  # 状态栈、输入栈
+        def set_children():  # 由于自底向上分析只能获得父节点，因此需要再次处理，设置子节点
+            for node in nodes:
+                if node.parent is not None:
+                    node.parent.add_child(node)
+
+        sep, syntax_lst, states, inputs, nodes_stack, nodes = ' ', [], [0], tokens + ['$'], ['$'], []
         while True:
-            top_token, top_state = input_stack[0], states_stack[0]
+            top_token, top_state = inputs[0], states[0]
             if top_token not in self.table[top_state]:
                 print('错误')
                 return
             op = self.table[top_state][top_token].split()
             if op[0] == 'acc':
-                print('语法分析成功')
-                return True
+                syntax_lst.append((sep.join(list(map(str, states))), sep.join(inputs), '成功：' + self.start_symbol))
+                nodes.append(self.tree)
+                self.tree = SyntaxNode(self.start_symbol)
+                nodes_stack[0].set_parent(self.tree)
+                set_children()
+                return syntax_lst
             if op[0] == 's':  # 移入
-                print('移入\t', top_token)
-                states_stack.insert(0, int(op[1]))
-                input_stack.pop(0)
+                syntax_lst.append((sep.join(list(map(str, states))), sep.join(inputs), '移入：' + top_token))
+                states.insert(0, int(op[1]))
+                syntax_node = SyntaxNode(top_token)
+                nodes.append(syntax_node)
+                nodes_stack.insert(0, syntax_node)
+                inputs.pop(0)
             elif op[0] == 'r':  # 规约
                 non_term, symbols = self.rules[int(op[1])]
-                states_stack = states_stack[len(symbols):]
-                states_stack.insert(0, self.table[states_stack[0]][non_term])
-                print('规约\t', non_term + ' -> ' + ' '.join(symbols))
+                syntax_lst.append(
+                    (sep.join(list(map(str, states))), sep.join(inputs), '规约：' + non_term + ' -> ' + sep.join(symbols)))
+                parent_node = SyntaxNode(non_term)
+                nodes.append(parent_node)
+                for syntax_node in nodes_stack[:len(symbols)]:
+                    syntax_node.set_parent(parent_node)
+                nodes_stack = nodes_stack[len(symbols):]
+                states = states[len(symbols):]
+                nodes_stack.insert(0, parent_node)
+                states.insert(0, self.table[states[0]][non_term])
 
 
 class SyntaxNode:
@@ -184,9 +205,13 @@ class SyntaxNode:
     def __init__(self, symbol, children=None):
         self.symbol = symbol  # 当前节点的文法符号
         self.children = [] if children is None else children  # 当前文法符号产生式的右部
+        self.parent = None  # 当前符号的父节点
 
-    def add(self, children):
-        self.children.extend(children)
+    def add_child(self, child):
+        self.children.append(child)
+
+    def set_parent(self, parent):
+        self.parent = parent
 
     def __str__(self):
         return self.symbol
@@ -194,11 +219,7 @@ class SyntaxNode:
 
 def main():
     syntax = Syntax()
-    syntax.read_syntax('help/syntax.json')
-    syntax.get_first()
-    syntax.get_follow()
-    syntax.get_item_collection()
-    syntax.get_table()
+    syntax.syntax_init('./help/syntax.json')
     syntax.syntax_run(['*', '*', 'id', '=', '*', 'id'])
 
 
