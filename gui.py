@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 from PyQt5.QtWidgets import QMenuBar, QApplication, QMenu, QMainWindow, QAction, QFileDialog, QDialog, QLabel, \
-    QTableWidget, QAbstractItemView, QTableWidgetItem, QHeaderView, QTreeWidgetItem, QStyleFactory
+    QTableWidget, QAbstractItemView, QTableWidgetItem, QHeaderView, QTreeWidgetItem, QStyleFactory, QMessageBox
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtGui import QIcon, QKeySequence, QFont, QColor, QBrush
 from PyQt5.QtCore import QUrl, Qt
@@ -56,19 +56,18 @@ class MainWindow(QMainWindow):
         self.menu_bar = QMenuBar(self)  # 菜单栏
 
         self.file_menu = QMenu('文件', self.menu_bar)
-        self.open_file_action = QAction('打开文件', shortcut=QKeySequence.Open, triggered=self.open_file)
-        self.save_file_action = QAction('保存文件', shortcut=QKeySequence.Save, triggered=self.save_file)
+        self.open_file_action = QAction('打开', shortcut=QKeySequence.Open, triggered=self.open_file)
+        self.save_file_action = QAction('保存', shortcut=QKeySequence.Save, triggered=self.save_file)
         self.save_as_action = QAction('另存为', shortcut='ctrl+shift+s', triggered=self.save_as_file)
 
         self.lexical_menu = QMenu('词法分析', self.menu_bar)
-        self.lexical_run_action = QAction('运行词法分析', shortcut='ctrl+f1', triggered=self.lexical_run)
+        self.lexical_run_action = QAction('运行', shortcut='ctrl+f1', triggered=self.lexical_run)
         self.dfa_action = QAction('DFA转换表', triggered=self.dfa)
         self.nfa_action = QAction('NFA转换表', triggered=self.nfa)
 
         self.syntax_menu = QMenu('语法分析', self.menu_bar)
-        self.syntax_run_action = QAction('运行语法分析', shortcut='ctrl+f2', triggered=self.syntax_run)
+        self.syntax_run_action = QAction('运行', shortcut='ctrl+f2', triggered=self.syntax_run)
         self.grammar_action = QAction('语法信息', triggered=self.grammar)
-        self.lst_action = QAction('更多信息', triggered=self.more)
 
         self.semantic_menu = QMenu('语义分析', self.menu_bar)
         self.about_menu = QMenu('关于', self.menu_bar)
@@ -95,7 +94,6 @@ class MainWindow(QMainWindow):
 
         self.syntax_menu.addAction(self.syntax_run_action)
         self.syntax_menu.addAction(self.grammar_action)
-        self.syntax_menu.addAction(self.lst_action)
 
         self.semantic_menu.addAction(self.more_action)
 
@@ -154,15 +152,24 @@ class MainWindow(QMainWindow):
         lexical = Lexical()
         lexical.get_dfa('./help/dfa.json')  # 读取DFA转换表
         lexical_res = lexical.lexical_run(str(res).replace('\r\n', '\n'))  # 得到词法分析的token序列
+        tokens, line_nums = [], []
+        if not lexical_res[0] and not lexical_res[1]:
+            QMessageBox.warning(self, '输入无效', '请输入有效程序文本')
+            return
+        for idx in range(len(lexical_res[0])):  # item[1]为种别码,item[3]为行号
+            item = lexical_res[0][idx]
+            if 'COMMENT' not in item[1]:
+                tokens.append(item[1])
+                line_nums.append(item[3])
         syntax = Syntax()
         syntax.syntax_init('./help/syntax.json')
-        syntax_lst = syntax.syntax_run(
-            ['proc', 'id', ';', 'integer', 'id', ';', 'id', '=', 'digit', ';', 'real', 'id', ';'])
+        syntax_lst = syntax.syntax_run(tokens, line_nums)
+
         self.syntax_window = QDialog()
         ui = syntax_res.Ui_Dialog()
         ui.setupUi(self.syntax_window)
         self.syntax_window.setWindowIcon(QIcon('./help/system.ico'))
-        set_syntax_window(ui, syntax, syntax_lst)
+        set_syntax_win(ui, syntax, syntax_lst)
         self.syntax_window.show()
 
     def syntax_run(self):  # 运行语法分析
@@ -175,7 +182,7 @@ class MainWindow(QMainWindow):
         self.grammar_window = QDialog()
         ui = syntax_grammar.Ui_dialog()
         ui.setupUi(self.grammar_window)
-        set_grammar_table(ui, syntax)
+        set_grammar_tbl(ui, syntax)
         self.grammar_window.show()
 
     def more(self):  # 待实现
@@ -351,7 +358,7 @@ class NFAWindow(QDialog):
             self.__info_table.setItem(idx, 1, QTableWidgetItem(' '.join('%s' % d for d in states[idx])))
 
 
-def set_grammar_table(ui: syntax_grammar.Ui_dialog, syntax: Syntax):
+def set_grammar_tbl(ui: syntax_grammar.Ui_dialog, syntax: Syntax):
     ui.grammar_table.setRowCount(len(syntax.rules))  # 设置文法展示表和Select集的表
     ui.grammar_table.setVerticalHeaderLabels([str(idx) for idx in range(len(syntax.rules))])
     for idx, rule in enumerate(syntax.rules):
@@ -366,9 +373,9 @@ def set_grammar_table(ui: syntax_grammar.Ui_dialog, syntax: Syntax):
     symbols = syntax.terminals + syntax.non_terminals
     symbols.remove(syntax.start_symbol)
     ui.table.setColumnCount(len(symbols))  # 设置分析表
-    ui.table.setRowCount(len(syntax.non_terminals))
     ui.table.setHorizontalHeaderLabels(symbols)
-    ui.table.setVerticalHeaderLabels(syntax.non_terminals)
+    ui.table.setRowCount(len(syntax.table))
+    ui.table.setVerticalHeaderLabels(map(str, range(len(syntax.table))))
     for idx, state in enumerate(syntax.table):
         for idy, symbol in enumerate(symbols):
             if symbol in syntax.table[state]:
@@ -376,11 +383,28 @@ def set_grammar_table(ui: syntax_grammar.Ui_dialog, syntax: Syntax):
                 if syntax.table[state][symbol] == 'acc':
                     item.setForeground(QBrush(QColor(0, 0, 255)))
                 ui.table.setItem(idx, idy, item)
-    for table in [ui.grammar_table, ui.lst_table, ui.table]:
+
+    count, item_num, merged_res = 0, 0, syntax.get_merged_table()  # item_nums用于项目总数目
+    for idx in range(len(merged_res)):
+        item_num += len(merged_res[idx])
+    ui.item_tbl.setRowCount(item_num)
+    ui.item_tbl.setVerticalHeaderLabels(map(str, range(item_num)))
+    for idx in range(len(merged_res)):
+        item_collection = merged_res[idx]
+        for idy, ((production, dot_pos), look_ahead) in enumerate(item_collection.items()):
+            non_term, symbols = syntax.rules[production]
+            copy_symbols = symbols.copy()
+            copy_symbols.insert(dot_pos, '·')  # 项目
+            ui.item_tbl.setItem(count, 0, QTableWidgetItem(str(idx)))
+            ui.item_tbl.setItem(count, 1, QTableWidgetItem(non_term + ' -> ' + ' '.join(copy_symbols)))
+            ui.item_tbl.setItem(count, 2, QTableWidgetItem(' '.join(look_ahead)))
+            count += 1
+
+    for table in [ui.grammar_table, ui.item_tbl, ui.lst_table, ui.table]:
         table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
 
 
-def set_syntax_window(ui: syntax_res.Ui_Dialog, syntax: Syntax, syntax_lst: list):
+def set_syntax_win(ui: syntax_res.Ui_Dialog, syntax: Syntax, syntax_lst: list):
     ui.syntax_table.setRowCount(len(syntax_lst))  # 设置语法分析过程表
     ui.syntax_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
     for idx, value in enumerate(syntax_lst):
@@ -392,7 +416,7 @@ def set_syntax_window(ui: syntax_res.Ui_Dialog, syntax: Syntax, syntax_lst: list
     tree_stack, item_stack = [syntax.tree], [QTreeWidgetItem(ui.syntax_tree)]
     while tree_stack:
         tree_node, item_node = tree_stack.pop(0), item_stack.pop(0)
-        item_node.setText(0, tree_node.symbol)
+        item_node.setText(0, tree_node.__str__())
         tree_stack = tree_node.children + tree_stack
         item_stack = [QTreeWidgetItem(item_node) for child in tree_node.children] + item_stack
     ui.syntax_tree.expandAll()

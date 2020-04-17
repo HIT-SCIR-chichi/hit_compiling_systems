@@ -108,7 +108,6 @@ class Ui_Dialog(object):
         self.syntax_tree.setAlternatingRowColors(False)
         self.syntax_tree.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerItem)
         self.syntax_tree.setObjectName("syntax_tree")
-        self.syntax_tree.headerItem().setText(0, "1")
         self.syntax_tree.header().setVisible(False)
         self.verticalLayout_3.addWidget(self.syntax_tree)
         self.horizontalLayout.addWidget(self.frame_3)

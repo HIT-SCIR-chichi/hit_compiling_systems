@@ -1,8 +1,8 @@
 {
   "start_symbol": "P'",
   "empty_string": "null",
-  "terminals": "proc id ; record integer real [ ] = + * - ( ) digit if then else while do or and not true false < <= == != > >= call , $",
-  "non_terminals": "P' P S D T X C E L B relop Elist",
+  "terminals": "proc id ; struct int unsigned long char short float double { } [ ] = + * - ( ) digit if then else while do or and not true false < <= == != > >= call , $",
+  "non_terminals": "P' P S D X C E L B relop Elist",
   "rules": {
     "P'": [
       "P"
@@ -23,15 +23,17 @@
     "D": [
       "D D",
       "proc id ; D S",
-      "T id ;"
-    ],
-    "T": [
-      "X C",
-      "record D"
+      "X C id ;",
+      "struct id { D } ;"
     ],
     "X": [
-      "integer",
-      "real"
+      "int",
+      "unsigned",
+      "long",
+      "short",
+      "char",
+      "double",
+      "float"
     ],
     "C": [
       "[ num ] C",

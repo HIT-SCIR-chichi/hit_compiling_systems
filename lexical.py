@@ -14,14 +14,16 @@ def get_line_num(text, idx) -> int:  # 获得text中idx位置的行号
 
 
 class Lexical:
+    """
+    token为四元组：(str, 种别码, 属性值, 行号)
+    """
 
     def __init__(self):
         self.state_number = 0  # 状态数目
         self.start_state = 0  # 开始状态编号
         self.char = []  # 状态转移表中的所有引起转移的符号终结符集合，包括'other',注意结束符'\0'在json文件中存储方式为'\\0'
-        self.token_with_info = []  # 除种别码外需要带有信息的状态
+        self.token_with_info = {}  # 除种别码外需要带有信息的状态
         self.end_state = {}  # 结束状态编号及其对应的描述
-        self.end_state_less_info = {}  # 结束状态编号及其简略描述
         self.err_info = {}  # 错误代码及其处理信息
         self.key_word = []  # 关键字集合
         self.dfa = {}  # dfa转换表
@@ -33,9 +35,8 @@ class Lexical:
             self.state_number = dic['state_number']
             self.start_state = dic['start_state']
             self.char = [each if each != '\\0' else '\0' for each in dic['char']]  # 对json文件中的'\0'转义
-            self.token_with_info = dic['token_with_info']
+            self.token_with_info = {int(item[0]): item[1] for item in dic['token_with_info'].items()}
             self.end_state = {int(item[0]): item[1] for item in dic['end_state'].items()}
-            self.end_state_less_info = {int(item[0]): item[1] for item in dic['end_state_less_info'].items()}
             self.err_info = {int(item[0]): item[1] for item in dic['error_info'].items()}
             self.key_word = dic['key_word']
             self.dfa = {idx: {idy if idy != '\\0' else '\0': dic[str(idx)][idy] for idy in dic[str(idx)]}
@@ -118,11 +119,11 @@ class Lexical:
                     idx = end_save[2]  # 进行状态回退
                     line_num = get_line_num(text, idx - 1)
                     if end_save[0] in self.token_with_info:
-                        res[len(res)] = end_save[1], self.end_state_less_info[end_save[0]], end_save[1], line_num
+                        res[len(res)] = end_save[1], self.token_with_info[end_save[0]], end_save[1], line_num
                     elif self.end_state[end_save[0]] == '标识符关键字' and end_save[1] not in self.key_word:
-                        res[len(res)] = end_save[1], 'IDN', end_save[1], line_num
+                        res[len(res)] = end_save[1], 'id', end_save[1], line_num
                     else:
-                        res[len(res)] = end_save[1], end_save[1].upper(), '_', line_num
+                        res[len(res)] = end_save[1], end_save[1], '_', line_num
                 if end_save[0] == -12 and state < 0 and len(last_str) > 1:
                     idx -= 1
                 state, end_save, last_str = 0, (-12, '', -1), ''
@@ -138,3 +139,8 @@ class Lexical:
 
     def get_dfa_table(self):
         return self.state_number, self.char, self.dfa, self.end_state, self.err_info
+
+
+lexical = Lexical()
+lexical.get_dfa('./help/dfa.json')  # 读取DFA转换表
+lexical.lexical_run('int b, c = 07, 0x1f;float _d1, _d2 = 1. , .1 ;')
