@@ -158,7 +158,7 @@ class MainWindow(QMainWindow):
             return
         for idx in range(len(lexical_res[0])):  # item[1]为种别码,item[3]为行号
             item = lexical_res[0][idx]
-            if 'COMMENT' not in item[1]:
+            if 'comment' not in item[1]:
                 tokens.append(item[1])
                 line_nums.append(item[3])
         syntax = Syntax()
@@ -169,6 +169,8 @@ class MainWindow(QMainWindow):
         ui = syntax_res.Ui_Dialog()
         ui.setupUi(self.syntax_window)
         self.syntax_window.setWindowIcon(QIcon('./help/system.ico'))
+        self.syntax_window.setWindowFlags(
+            Qt.WindowMinimizeButtonHint | Qt.WindowCloseButtonHint | Qt.WindowMaximizeButtonHint)
         set_syntax_win(ui, syntax, syntax_lst)
         self.syntax_window.show()
 
@@ -421,6 +423,7 @@ def set_syntax_win(ui: syntax_res.Ui_Dialog, syntax: Syntax, syntax_lst: list):
         item_stack = [QTreeWidgetItem(item_node) for child in tree_node.children] + item_stack
     ui.syntax_tree.expandAll()
     ui.syntax_tree.setStyle(QStyleFactory.create("windows"))  # 显示树上的虚线
+    ui.syntax_tree.header().setSectionResizeMode(QHeaderView.ResizeToContents)
 
 
 if __name__ == "__main__":

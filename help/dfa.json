@@ -34,16 +34,16 @@
     "other"
   ],
   "token_with_info": {
-    "18": "DEC",
-    "19": "CONST_INT",
-    "20": "OCT",
-    "22": "HEX",
-    "25": "E-NOTATION",
-    "27": "CONST_FLOAT",
-    "33": "COMMENT_MULTI",
-    "34": "COMMENT_SINGLE",
-    "37": "CONST_CHAR",
-    "39": "CONST_STRING"
+    "18": "dec",
+    "19": "const_int",
+    "20": "oct",
+    "22": "hex",
+    "25": "e-notation",
+    "27": "const_float",
+    "33": "comment_multi",
+    "34": "comment_single",
+    "37": "const_char",
+    "39": "const_string"
   },
   "end_state": {
     "1": "运算符+*^",
@@ -124,7 +124,12 @@
     "unsigned",
     "void",
     "volatile",
-    "while"
+    "while",
+    "proc",
+    "then",
+    "not",
+    "and",
+    "call"
   ],
   "0": {
     "/": 30,
