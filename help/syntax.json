@@ -1,32 +1,75 @@
 {
-  "start_symbol": "S'",
+  "start_symbol": "P'",
   "empty_string": "null",
-  "terminals": [
-    "id",
-    "*",
-    "=",
-    "$"
-  ],
-  "non_terminals": [
-    "S'",
-    "S",
-    "L",
-    "R"
-  ],
+  "terminals": "proc id ; record integer real [ ] = + * - ( ) digit if then else while do or and not true false < <= == != > >= call , $",
+  "non_terminals": "P' P S D T X C E L B relop Elist",
   "rules": {
-    "S'": [
+    "P'": [
+      "P"
+    ],
+    "P": [
+      "D",
       "S"
     ],
     "S": [
-      "L = R",
-      "R"
+      "S S",
+      "id = E ;",
+      "L = E ;",
+      "if B then S",
+      "if B then S else S",
+      "while B do S",
+      "call if ( Elist )"
+    ],
+    "D": [
+      "D D",
+      "proc id ; D S",
+      "T id ;"
+    ],
+    "T": [
+      "X C",
+      "record D"
+    ],
+    "X": [
+      "integer",
+      "real"
+    ],
+    "C": [
+      "[ num ] C",
+      "null"
+    ],
+    "E": [
+      "E + E",
+      "E * E",
+      "- E",
+      "( E )",
+      "id",
+      "digit",
+      "L"
     ],
     "L": [
-      "* R",
-      "id"
+      "id [ E ]",
+      "L [ E ]"
     ],
-    "R": [
-      "L"
+    "B": [
+      "B or B",
+      "B and B",
+      "not B",
+      "( B )",
+      "E relop B",
+      "true",
+      "false"
+    ],
+    "relop": [
+      "<",
+      "<=",
+      "==",
+      "!=",
+      ">",
+      ">="
+    ],
+    "Elist": [
+      "Elist , E",
+      "E"
     ]
   }
 }

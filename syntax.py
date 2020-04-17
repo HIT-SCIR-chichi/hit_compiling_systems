@@ -30,38 +30,37 @@ class Syntax:
             js_dic = json.load(f)
             self.start_symbol = js_dic['start_symbol']
             self.empty_str = js_dic['empty_string']
-            self.terminals = js_dic['terminals']
-            self.non_terminals = js_dic['non_terminals']
+            self.terminals = js_dic['terminals'].split()
+            self.non_terminals = js_dic['non_terminals'].split()
             for non_terminal, values in js_dic['rules'].items():
                 for value in values:
                     self.rules.append((non_terminal, value.split()))
-            self.tree = SyntaxNode(self.start_symbol)
 
     def get_first(self):
         """获得文法中所有符号的first集."""
         self.first = {terminal: [terminal] for terminal in self.terminals}  # 终结符的First集为自身
-        for non_terminal in self.non_terminals:
-            self.first[non_terminal] = []
+        for non_term in self.non_terminals:
+            self.first[non_term] = []
         flag = True  # 迭代更新标志，用于判断是否仍需要一轮迭代
         while flag:
             flag = False
-            for non_terminal, production in self.rules:  # 遍历每一个产生式
-                if production == [self.empty_str]:
-                    if self.empty_str not in self.first[non_terminal]:  # 存在未加入到First集中的空串，将其加入到First集合
-                        self.first[non_terminal].append(self.empty_str)
+            for non_term, symbols in self.rules:  # 遍历每一个产生式
+                if symbols == [self.empty_str]:
+                    if self.empty_str not in self.first[non_term]:  # 存在未加入到First集中的空串，将其加入到First集合
+                        self.first[non_term].append(self.empty_str)
                         flag = True
                     continue
-                for symbol in production:  # 遍历非空产生式右部的每一个符号
+                for symbol in symbols:  # 遍历非空产生式右部的每一个符号
                     for item in self.first[symbol]:  # 如果是空串，则说明需要处理下一个符号，同时不添加空串到First集中
-                        if item != self.empty_str and item not in self.first[non_terminal]:
-                            self.first[non_terminal].append(item)
+                        if item != self.empty_str and item not in self.first[non_term]:
+                            self.first[non_term].append(item)
                             flag = True
                     if self.empty_str in self.first[symbol]:  # 右部符号First集含有空串，分析下个符号或将空串加入
                         continue
                     else:  # 右部符号First集不含有空串，说明该产生式分析结束
                         break
-                if self.empty_str in self.first[symbol] and self.empty_str not in self.first[non_terminal]:
-                    self.first[non_terminal].append(self.empty_str)  # 若产生式最终可以推导出空串，则将空串加入到First集
+                if self.empty_str in self.first[symbols[-1]] and self.empty_str not in self.first[non_term]:
+                    self.first[non_term].append(self.empty_str)  # 若产生式最终可以推导出空串，则将空串加入到First集
                     flag = True
 
     def get_str_first(self, symbols: list) -> list:
@@ -77,11 +76,9 @@ class Syntax:
         if symbols:
             for symbol in symbols:
                 res.extend(item for item in self.first[symbol] if item not in res and item != self.empty_str)
-                if self.empty_str in self.first[symbol]:
-                    continue
-                else:
+                if self.empty_str not in self.first[symbol]:
                     break
-            if self.empty_str in self.first[symbol] and self.empty_str not in res:
+            if self.empty_str in self.first[symbols[-1]] and self.empty_str not in res:
                 res.append(self.empty_str)
         return res
 
@@ -152,12 +149,15 @@ class Syntax:
         for idx, item_set in enumerate(self.item_collection):  # 遍历每一个项目集
             for item in item_set:  # 遍历每一个项目
                 non_term, symbol_lst = self.rules[item[0]]  # non_term为非终结符，symbol_lst为右侧文法符号
+                info = ('\t' + str(self.table[idx][item[2]])) if item[2] in self.table[idx] else ''
                 if item[1] == len(symbol_lst) and non_term == self.start_symbol and item[2] == '$':
                     self.table[idx][item[2]] = 'acc'  # 成功接收
+                elif symbol_lst[0] == self.empty_str:
+                    self.table[idx][item[2]] = 'r ' + str(item[0]) + info
                 elif item[1] == len(symbol_lst) and non_term != self.start_symbol:
-                    self.table[idx][item[2]] = 'r ' + str(item[0])
+                    self.table[idx][item[2]] = 'r ' + str(item[0]) + info  # 点号在最后一个符号后面，为规约符号
                 elif symbol_lst[item[1]] in self.terminals:
-                    self.table[idx][symbol_lst[item[1]]] = 's ' + str(goto_tbl[idx][symbol_lst[item[1]]])
+                    self.table[idx][symbol_lst[item[1]]] = 's ' + str(goto_tbl[idx][symbol_lst[item[1]]]) + info
 
     def syntax_run(self, tokens: list):  # LR(1)文法运行语法分析
         def set_children():  # 由于自底向上分析只能获得父节点，因此需要再次处理，设置子节点
@@ -174,8 +174,8 @@ class Syntax:
             op = self.table[top_state][top_token].split()
             if op[0] == 'acc':
                 syntax_lst.append((sep.join(list(map(str, states))), sep.join(inputs), '成功：' + self.start_symbol))
-                nodes.append(self.tree)
                 self.tree = SyntaxNode(self.start_symbol)
+                nodes.append(self.tree)
                 nodes_stack[0].set_parent(self.tree)
                 set_children()
                 return syntax_lst
@@ -190,13 +190,17 @@ class Syntax:
                 non_term, symbols = self.rules[int(op[1])]
                 syntax_lst.append(
                     (sep.join(list(map(str, states))), sep.join(inputs), '规约：' + non_term + ' -> ' + sep.join(symbols)))
+                if symbols[0] == self.empty_str:  # 空产生式，特殊处理
+                    null_node = SyntaxNode(self.empty_str)
+                    nodes.append(null_node)
+                    nodes_stack.insert(0, null_node)
                 parent_node = SyntaxNode(non_term)
                 nodes.append(parent_node)
                 for syntax_node in nodes_stack[:len(symbols)]:
                     syntax_node.set_parent(parent_node)
                 nodes_stack = nodes_stack[len(symbols):]
-                states = states[len(symbols):]
                 nodes_stack.insert(0, parent_node)
+                states = states[len(symbols) if symbols[0] != self.empty_str else 0:]
                 states.insert(0, self.table[states[0]][non_term])
 
 
@@ -220,7 +224,7 @@ class SyntaxNode:
 def main():
     syntax = Syntax()
     syntax.syntax_init('./help/syntax.json')
-    syntax.syntax_run(['*', '*', 'id', '=', '*', 'id'])
+    syntax.syntax_run(['integer', 'id', ';'])
 
 
 if __name__ == '__main__':

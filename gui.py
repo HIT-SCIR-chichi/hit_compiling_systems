@@ -156,7 +156,8 @@ class MainWindow(QMainWindow):
         lexical_res = lexical.lexical_run(str(res).replace('\r\n', '\n'))  # 得到词法分析的token序列
         syntax = Syntax()
         syntax.syntax_init('./help/syntax.json')
-        syntax_lst = syntax.syntax_run(['*', '*', 'id', '=', '*', 'id'])
+        syntax_lst = syntax.syntax_run(
+            ['proc', 'id', ';', 'integer', 'id', ';', 'id', '=', 'digit', ';', 'real', 'id', ';'])
         self.syntax_window = QDialog()
         ui = syntax_res.Ui_Dialog()
         ui.setupUi(self.syntax_window)
@@ -354,7 +355,7 @@ def set_grammar_table(ui: syntax_grammar.Ui_dialog, syntax: Syntax):
     ui.grammar_table.setRowCount(len(syntax.rules))  # 设置文法展示表和Select集的表
     ui.grammar_table.setVerticalHeaderLabels([str(idx) for idx in range(len(syntax.rules))])
     for idx, rule in enumerate(syntax.rules):
-        ui.grammar_table.setItem(idx, 0, QTableWidgetItem(rule[0] + '->' + ''.join(rule[1])))  # 产生式
+        ui.grammar_table.setItem(idx, 0, QTableWidgetItem(rule[0] + '->' + ' '.join(rule[1])))  # 产生式
 
     ui.lst_table.setRowCount(len(syntax.non_terminals))  # 设置First集和Follow集的展示表
     for idx, non_term in enumerate(syntax.non_terminals):
@@ -368,7 +369,6 @@ def set_grammar_table(ui: syntax_grammar.Ui_dialog, syntax: Syntax):
     ui.table.setRowCount(len(syntax.non_terminals))
     ui.table.setHorizontalHeaderLabels(symbols)
     ui.table.setVerticalHeaderLabels(syntax.non_terminals)
-    # ui.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
     for idx, state in enumerate(syntax.table):
         for idy, symbol in enumerate(symbols):
             if symbol in syntax.table[state]:
@@ -376,6 +376,8 @@ def set_grammar_table(ui: syntax_grammar.Ui_dialog, syntax: Syntax):
                 if syntax.table[state][symbol] == 'acc':
                     item.setForeground(QBrush(QColor(0, 0, 255)))
                 ui.table.setItem(idx, idy, item)
+    for table in [ui.grammar_table, ui.lst_table, ui.table]:
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
 
 
 def set_syntax_window(ui: syntax_res.Ui_Dialog, syntax: Syntax, syntax_lst: list):
