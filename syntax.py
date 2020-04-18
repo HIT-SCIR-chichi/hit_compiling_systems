@@ -161,49 +161,85 @@ class Syntax:
                 elif symbol_lst[item[1]] in self.terminals:
                     self.table[idx][symbol_lst[item[1]]] = 's ' + str(goto_tbl[idx][symbol_lst[item[1]]]) + info
 
-    def syntax_run(self, tokens: list, line_nums: list):  # LR(1)文法运行语法分析
+    def syntax_run(self, tokens: list, nums_attr: list):  # LR(1)文法运行语法分析
         def set_children():  # 由于自底向上分析只能获得父节点，因此需要再次处理，设置子节点
-            for node in nodes:
+            for node in all_nodes:
                 if node.parent is not None:
                     node.parent.add_child(node)
 
-        sep, syntax_lst, states, tokens, nodes_stack, nodes = ' ', [], [0], tokens + ['$'], ['$'], []
-        line_nums.append('$')
+        sep, syntax_lst, states, tokens, nodes, all_nodes, syntax_err = ' ', [], [0], tokens + ['$'], ['$'], [], []
+        nums_attr.append('$')
         while True:
-            top_token, top_state, top_num = tokens[0], states[0], line_nums[0]
+            top_token, top_state, top_num_attr = tokens[0], states[0], nums_attr[0]
             if top_token not in self.table[top_state]:
-                return syntax_lst
-            op = self.table[top_state][top_token].split()
-            if op[0] == 'acc':
-                syntax_lst.append((sep.join(list(map(str, states))), sep.join(tokens), '成功：' + self.start_symbol))
-                nodes.append(self.tree)
-                nodes_stack[0].set_parent(self.tree)
-                set_children()
-                return syntax_lst
-            if op[0] == 's':  # 移入
-                syntax_lst.append((sep.join(list(map(str, states))), sep.join(tokens), '移入：' + top_token))
-                states.insert(0, int(op[1]))
-                syntax_node = SyntaxNode(top_token, line_num=top_num)
-                nodes.append(syntax_node)
-                nodes_stack.insert(0, syntax_node)
-                tokens.pop(0)
-                line_nums.pop(0)
-            elif op[0] == 'r':  # 规约
-                non_term, symbols = self.rules[int(op[1])]
-                syntax_lst.append(
-                    (sep.join(list(map(str, states))), sep.join(tokens), '规约：' + non_term + ' -> ' + sep.join(symbols)))
-                if symbols[0] == self.empty_str:  # 空产生式，特殊处理
-                    null_node = SyntaxNode(self.empty_str)
-                    nodes.append(null_node)
-                    nodes_stack.insert(0, null_node)
-                parent_node = SyntaxNode(non_term)
-                nodes.append(parent_node)
-                for syntax_node in nodes_stack[:len(symbols)]:
-                    syntax_node.set_parent(parent_node)
-                nodes_stack = nodes_stack[len(symbols):]
-                nodes_stack.insert(0, parent_node)
-                states = states[len(symbols) if symbols[0] != self.empty_str else 0:]
-                states.insert(0, self.table[states[0]][non_term])
+                flag = True
+                for idx, state in enumerate(states):  # 从符号栈自栈顶向下扫描，找到第一个可以跳转的符号以及对应的非终结符A的GOTO目标
+                    for non_term in self.non_terminals:
+                        if non_term in self.table[state]:
+                            top_state = self.table[state][non_term]
+                            for idy, token in enumerate(tokens):  # 忽略输入token，直到找到一个合法的可以跟在A后的token
+                                if token in self.table[top_state]:
+                                    symbols = [nodes[count].symbol for count in range(idx)]
+                                    symbols.reverse()
+                                    symbols.extend(tokens[:idy])
+                                    syntax_err.append(
+                                        (top_num_attr[0], top_token + ' : ' + str(top_state), '移入' + sep.join(
+                                            tokens[:idy]) + '  规约' + non_term + ' -> ' + sep.join(symbols)))
+                                    # 移入操作
+                                    for item, num_attr in zip(tokens[:idy], nums_attr[:idy]):
+                                        syntax_node = SyntaxNode(item, line_num=num_attr[0], attribute=num_attr[1])
+                                        all_nodes.append(syntax_node)
+                                        nodes.insert(0, syntax_node)
+                                    syntax_lst.append((sep.join(list(map(str, states))), sep.join(tokens),
+                                                       '错误恢复：移入' + sep.join(tokens[:idy])))
+                                    # 规约操作
+                                    parent_node = SyntaxNode(non_term)
+                                    for syntax_node in nodes[:len(symbols)]:
+                                        syntax_node.set_parent(parent_node)
+                                    all_nodes.append(parent_node)
+                                    syntax_lst.append((sep.join(list(map(str, states))), sep.join(tokens),
+                                                       '错误恢复：规约：' + non_term + ' -> ' + sep.join(symbols)))
+
+                                    # 删除栈顶符号，保留state, 并将goto(s, A)压入栈；忽略输入token，保留token
+                                    states, nodes = [top_state] + states[idx:], [parent_node] + nodes[len(symbols):]
+                                    nums_attr, tokens, flag = nums_attr[idy:], tokens[idy:], False
+                                    break
+                        if not flag:  # 找到则跳出循环
+                            break
+                    if not flag:  # 找到则跳出循环
+                        break
+            else:
+                op = self.table[top_state][top_token].split()
+                if op[0] == 'acc':
+                    syntax_lst.append((sep.join(list(map(str, states))), sep.join(tokens), '成功：' + self.start_symbol))
+                    all_nodes.append(self.tree)
+                    nodes[0].set_parent(self.tree)
+                    set_children()
+                    return syntax_lst, syntax_err
+                elif op[0] == 's':  # 移入
+                    syntax_lst.append((sep.join(list(map(str, states))), sep.join(tokens), '移入：' + top_token))
+                    states.insert(0, int(op[1]))
+                    syntax_node = SyntaxNode(top_token, line_num=top_num_attr[0], attribute=top_num_attr[1])
+                    all_nodes.append(syntax_node)
+                    nodes.insert(0, syntax_node)
+                    tokens.pop(0)
+                    nums_attr.pop(0)
+                elif op[0] == 'r':  # 规约
+                    non_term, symbols = self.rules[int(op[1])]
+                    syntax_lst.append((sep.join(list(map(str, states))), sep.join(tokens),
+                                       '规约：' + non_term + ' -> ' + sep.join(symbols)))
+                    if symbols[0] == self.empty_str:  # 空产生式，特殊处理
+                        null_node = SyntaxNode(self.empty_str)
+                        all_nodes.append(null_node)
+                        nodes.insert(0, null_node)
+                    parent_node = SyntaxNode(non_term)
+                    all_nodes.append(parent_node)
+                    for syntax_node in nodes[:len(symbols)]:
+                        syntax_node.set_parent(parent_node)
+                    nodes = nodes[len(symbols):]
+                    nodes.insert(0, parent_node)
+                    states = states[len(symbols) if symbols[0] != self.empty_str else 0:]
+                    states.insert(0, self.table[states[0]][non_term])
 
     def get_merged_table(self) -> dict:  # 合并同一个项目集中的相同项目的不同展望符
         merged_res = {idx: {(item[0], item[1]): [] for item in items} for idx, items in enumerate(self.item_collection)}
@@ -215,11 +251,12 @@ class Syntax:
 
 class SyntaxNode:
 
-    def __init__(self, symbol, children=None, line_num=0):
+    def __init__(self, symbol, children=None, line_num=0, attribute=''):
         self.symbol = symbol  # 当前节点的文法符号
         self.children = [] if children is None else children  # 当前文法符号产生式的右部
         self.parent = None  # 当前符号的父节点
         self.line_num = line_num
+        self.attribute = attribute  # 属性值
 
     def add_child(self, child):
         self.children.append(child)
@@ -228,4 +265,9 @@ class SyntaxNode:
         self.parent = parent
 
     def __str__(self):
-        return self.symbol + ('' if not self.line_num else ' (' + str(self.line_num) + ')')
+        info = self.symbol
+        if self.attribute and self.attribute != '_':
+            info += ' :' + self.attribute
+        if self.line_num:
+            info += ' (' + str(self.line_num) + ')'
+        return info

@@ -3,7 +3,7 @@
 from PyQt5.QtWidgets import QMenuBar, QApplication, QMenu, QMainWindow, QAction, QFileDialog, QDialog, QLabel, \
     QTableWidget, QAbstractItemView, QTableWidgetItem, QHeaderView, QTreeWidgetItem, QStyleFactory, QMessageBox
 from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtGui import QIcon, QKeySequence, QFont, QColor, QBrush
+from PyQt5.QtGui import QIcon, QKeySequence, QFont, QColor, QBrush, QPalette
 from PyQt5.QtCore import QUrl, Qt
 from lexical import Lexical
 from syntax import Syntax
@@ -152,26 +152,25 @@ class MainWindow(QMainWindow):
         lexical = Lexical()
         lexical.get_dfa('./help/dfa.json')  # 读取DFA转换表
         lexical_res = lexical.lexical_run(str(res).replace('\r\n', '\n'))  # 得到词法分析的token序列
-        tokens, line_nums = [], []
+        tokens, nums_attr = [], []
         if not lexical_res[0] and not lexical_res[1]:
             QMessageBox.warning(self, '输入无效', '请输入有效程序文本')
             return
-        for idx in range(len(lexical_res[0])):  # item[1]为种别码,item[3]为行号
+        for idx in range(len(lexical_res[0])):  # item[1]为种别码,item[3]为行号,item[2]为属性值
             item = lexical_res[0][idx]
             if 'comment' not in item[1]:
                 tokens.append(item[1])
-                line_nums.append(item[3])
+                nums_attr.append((item[3], item[2]))
         syntax = Syntax()
         syntax.syntax_init('./help/syntax.json')
-        syntax_lst = syntax.syntax_run(tokens, line_nums)
+        syntax_lst, syntax_err = syntax.syntax_run(tokens, nums_attr)
 
         self.syntax_window = QDialog()
         ui = syntax_res.Ui_Dialog()
         ui.setupUi(self.syntax_window)
         self.syntax_window.setWindowIcon(QIcon('./help/system.ico'))
-        self.syntax_window.setWindowFlags(
-            Qt.WindowMinimizeButtonHint | Qt.WindowCloseButtonHint | Qt.WindowMaximizeButtonHint)
-        set_syntax_win(ui, syntax, syntax_lst)
+        self.syntax_window.setWindowFlags(Qt.WindowCloseButtonHint | Qt.WindowMinMaxButtonsHint)
+        set_syntax_win(ui, syntax, syntax_lst, lexical_res[1], syntax_err)
         self.syntax_window.show()
 
     def syntax_run(self):  # 运行语法分析
@@ -184,6 +183,7 @@ class MainWindow(QMainWindow):
         self.grammar_window = QDialog()
         ui = syntax_grammar.Ui_dialog()
         ui.setupUi(self.grammar_window)
+        self.grammar_window.setWindowFlags(Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
         set_grammar_tbl(ui, syntax)
         self.grammar_window.show()
 
@@ -406,7 +406,7 @@ def set_grammar_tbl(ui: syntax_grammar.Ui_dialog, syntax: Syntax):
         table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
 
 
-def set_syntax_win(ui: syntax_res.Ui_Dialog, syntax: Syntax, syntax_lst: list):
+def set_syntax_win(ui: syntax_res.Ui_Dialog, syntax: Syntax, syntax_lst: list, lexical_err: dict, syntax_err: list):
     ui.syntax_table.setRowCount(len(syntax_lst))  # 设置语法分析过程表
     ui.syntax_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
     for idx, value in enumerate(syntax_lst):
@@ -424,6 +424,20 @@ def set_syntax_win(ui: syntax_res.Ui_Dialog, syntax: Syntax, syntax_lst: list):
     ui.syntax_tree.expandAll()
     ui.syntax_tree.setStyle(QStyleFactory.create("windows"))  # 显示树上的虚线
     ui.syntax_tree.header().setSectionResizeMode(QHeaderView.ResizeToContents)
+
+    ui.error_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+    ui.error_table.setRowCount(len(lexical_err) + len(syntax_err))
+    for idx in range(len(lexical_err)):
+        item = lexical_err[idx]
+        ui.error_table.setItem(idx, 0, QTableWidgetItem(str(item[3])))
+        ui.error_table.item(idx, 0).setForeground(QBrush(QColor(255, 0, 0)))
+        ui.error_table.setItem(idx, 1, QTableWidgetItem(item[0]))
+        ui.error_table.setItem(idx, 2, QTableWidgetItem(item[2]))
+    for idx, item in enumerate(syntax_err):
+        ui.error_table.setItem(idx + len(lexical_err), 0, QTableWidgetItem(str(item[0])))
+        ui.error_table.item(idx + len(lexical_err), 0).setForeground(QBrush(QColor(0, 0, 255)))
+        ui.error_table.setItem(idx + len(lexical_err), 1, QTableWidgetItem(item[1]))
+        ui.error_table.setItem(idx + len(lexical_err), 2, QTableWidgetItem(item[2]))
 
 
 if __name__ == "__main__":

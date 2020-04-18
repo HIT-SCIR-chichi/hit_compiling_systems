@@ -129,7 +129,8 @@
     "then",
     "not",
     "and",
-    "call"
+    "call",
+    "bool"
   ],
   "0": {
     "/": 30,
