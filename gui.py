@@ -156,7 +156,7 @@ class MainWindow(QMainWindow):
         lexical_res = lexical.lexical_run(str(res).replace('\r\n', '\n'))  # 得到词法分析的token序列
         syntax = Syntax()
         syntax.syntax_init('./help/syntax.json')
-        syntax_lst = syntax.syntax_run(['id', '+', 'id', '*', 'id'])
+        syntax_lst = syntax.syntax_run(['int', 'id', ';'])
         self.syntax_window = QDialog()
         ui = syntax_res.Ui_Dialog()
         ui.setupUi(self.syntax_window)

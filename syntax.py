@@ -154,42 +154,29 @@ class Syntax:
         Args:
             text: 待分析的输入符号列表，序号越大代表输入符号越靠后（右）
         """
-        text, stack, node_stack, res, sepa = text + ['$'], [self.start_symbol, '$'], [self.tree, '$'], [], ' '
+        text, stack, node_stack, res, sep = text + ['$'], [self.start_symbol, '$'], [self.tree, '$'], [], ' '
         while stack:
             if stack[0] == text[0]:  # 栈顶元素与待分析串第一个元素相同，执行出栈操作
-                res.append((sepa.join(stack), sepa.join(text), '出栈', True))
+                res.append((sep.join(stack), sep.join(text), '出栈', True))
                 stack, text, node_stack = stack[1:], text[1:], node_stack[1:]
             elif stack[0] in self.terminals:  # 栈顶终结符与当前输入符号不匹配
-                res.append((sepa.join(stack), sepa.join(text), '栈顶终结符与输入不符，出栈', False))
+                res.append((sep.join(stack), sep.join(text), '栈顶终结符与输入不符，出栈', False))
                 stack.pop(0)
             elif text[0] not in self.predict[stack[0]]:  # 对应表项不存在
-                res.append((sepa.join(stack), sepa.join(text), '无表项，忽略输入符号', False))
+                res.append((sep.join(stack), sep.join(text), '无表项，忽略输入符号', False))
                 text.pop(0)
             elif self.predict[stack[0]][text[0]] == self.syn_token:  # 对应表项条目为同步此法单元，则需要弹出符号栈栈顶非终结符
-                res.append((sepa.join(stack), sepa.join(text), '表项为syn，出栈', False))
+                res.append((sep.join(stack), sep.join(text), '表项为syn，出栈', False))
                 stack.pop(0)
             else:  # 栈顶非终结符与当前输入终结符找到对应表项
                 symbols = self.rules[self.predict[stack[0]][text[0]]][1]  # 产生式右部符号
-                res.append((sepa.join(stack), sepa.join(text), stack[0] + ' -> ' + ' '.join(symbols), True))
+                res.append((sep.join(stack), sep.join(text), stack[0] + ' -> ' + ' '.join(symbols), True))
                 child_nodes = [SyntaxNode(symbol) for symbol in symbols]
                 stack.pop(0)
                 node_stack.pop(0).add(child_nodes)
                 stack = stack if symbols == [self.empty_str] else symbols + stack
                 node_stack = node_stack if symbols == [self.empty_str] else child_nodes + node_stack
         return res  # 返回分析过程
-
-    def get_closure(self, item_lst):  # LR(1)文法获得项目及闭包
-        while True:
-            for item in item_lst:  # 遍历项目集中的每一个项
-                pass
-
-    def get_item_set(self):  # 获得LR(1)文法中所有的项目
-        res = []
-        for non_tem, rule in self.rules:
-            if rule == [self.empty_str]:  # 空产生式只有一个项目
-                res.append((0, [self.empty_str]))
-            else:
-                res.extend([(idx, rule) for idx in range(len(rule))])
 
 
 class SyntaxNode:
@@ -207,9 +194,7 @@ class SyntaxNode:
 
 def main():
     syntax = Syntax()
-    syntax.read_syntax('help/syntax_lr.json')
-    syntax.get_item_set()
-    syntax.get_closure([])
+    syntax.syntax_init('help/syntax.json')
 
 
 if __name__ == '__main__':
