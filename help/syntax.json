@@ -1,8 +1,8 @@
 {
   "start_symbol": "P'",
   "empty_string": "null",
-  "terminals": "proc id ; struct int unsigned long char short float double bool { } [ ] = + * - ( ) if then else while do or and not true false < <= == != > >= call , $ dec oct hex const_int const_float const_char const_string e-notation",
-  "non_terminals": "P' P S D X C E L B RelOp ELst Num",
+  "terminals": "proc id ; struct int unsigned long char short float double bool { } [ ] = + * - / % ^ ( ) if then else while do or and not true false < <= == != > >= call , $ dec oct hex const_int const_float const_char const_string e-notation",
+  "non_terminals": "P' P S D X C E L B RelOp ELst Num Op",
   "rules": {
     "P'": [
       "P"
@@ -45,20 +45,27 @@
       "dec",
       "oct",
       "hex",
-      "const_int"
+      "const_int",
+      "const_float",
+      "e-notation"
     ],
     "E": [
-      "E + E",
-      "E * E",
+      "E Op E",
       "- E",
       "( E )",
       "id",
+      "L",
       "Num",
-      "const_float",
-      "e-notation",
       "const_char",
-      "const_string",
-      "L"
+      "const_string"
+    ],
+    "Op": [
+      "+",
+      "-",
+      "*",
+      "/",
+      "%",
+      "^"
     ],
     "L": [
       "id [ E ]",
