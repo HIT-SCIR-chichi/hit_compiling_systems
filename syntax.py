@@ -132,7 +132,7 @@ class Syntax:
         return self.get_closure(res)
 
     def get_item_collection(self):  # LR(1)文法的项集族
-        self.item_collection.append(self.get_closure([(0, 0, '$')]))  # 加入初始的项目集闭包3
+        self.item_collection.append(self.get_closure([(0, 0, '$')]))  # 加入初始的项目集闭包
         for idx, item_set in enumerate(self.item_collection):  # 遍历项集族中的每一个项目集
             self.table[idx] = {}
             for symbol in self.non_terminals + self.terminals:  # 对于每一个文法符号
@@ -200,7 +200,7 @@ class Syntax:
                                     syntax_lst.append((sep.join(list(map(str, states))), sep.join(tokens),
                                                        '错误恢复：规约：' + non_term + ' -> ' + sep.join(symbols)))
 
-                                    # 删除栈顶符号，保留state, 并将goto(s, A)压入栈；忽略输入token，保留token
+                                    # 删除栈顶符号，保留state, 并将goto(s, A)压入栈；忽略输入符号，保留token
                                     states, nodes = [top_state] + states[idx:], [parent_node] + nodes[len(symbols):]
                                     nums_attr, tokens, flag = nums_attr[idy:], tokens[idy:], False
                                     break
