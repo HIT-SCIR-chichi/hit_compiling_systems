@@ -3,7 +3,7 @@
 from PyQt5.QtWidgets import QMenuBar, QApplication, QMenu, QMainWindow, QAction, QFileDialog, QDialog, QLabel, \
     QTableWidget, QAbstractItemView, QTableWidgetItem, QHeaderView, QTreeWidgetItem, QStyleFactory, QMessageBox
 from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtGui import QIcon, QKeySequence, QFont, QColor, QBrush, QPalette
+from PyQt5.QtGui import QIcon, QKeySequence, QFont, QColor, QBrush
 from PyQt5.QtCore import QUrl, Qt
 from lexical import Lexical
 from syntax import Syntax
@@ -43,6 +43,7 @@ class Editor(QWebEngineView):
 
 
 class MainWindow(QMainWindow):
+    # noinspection PyArgumentList
     def __init__(self, editor):
         super().__init__()
         self.editor = editor
@@ -70,6 +71,9 @@ class MainWindow(QMainWindow):
         self.grammar_action = QAction('语法信息', triggered=self.grammar)
 
         self.semantic_menu = QMenu('语义分析', self.menu_bar)
+        self.semantic_run_action = QAction('运行', shortcut='ctrl+f3', triggered=self.semantic_run)
+        self.semantic_info_action = QAction('语义信息', triggered=self.semantic_info)
+
         self.about_menu = QMenu('关于', self.menu_bar)
         self.more_action = QAction('待实现', triggered=self.more)
         self.init_menu_bar()
@@ -95,7 +99,8 @@ class MainWindow(QMainWindow):
         self.syntax_menu.addAction(self.syntax_run_action)
         self.syntax_menu.addAction(self.grammar_action)
 
-        self.semantic_menu.addAction(self.more_action)
+        self.semantic_menu.addAction(self.semantic_run_action)
+        self.semantic_menu.addAction(self.semantic_info_action)
 
         self.about_menu.addAction(self.more_action)
 
@@ -186,6 +191,12 @@ class MainWindow(QMainWindow):
         self.grammar_window.setWindowFlags(Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
         set_grammar_tbl(ui, syntax)
         self.grammar_window.show()
+
+    def semantic_run(self):
+        print('2')
+
+    def semantic_info(self):
+        print('1')
 
     def more(self):  # 待实现
         pass
