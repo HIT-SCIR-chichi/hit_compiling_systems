@@ -7,7 +7,7 @@ from PyQt5.QtGui import QIcon, QKeySequence, QFont, QColor, QBrush
 from PyQt5.QtCore import QUrl, Qt
 from lexical import Lexical
 from syntax import Syntax
-from ui import syntax_grammar, syntax_res
+from ui import syntax_grammar, syntax_res, semantic_res, semantic_info
 import sys
 import os
 
@@ -19,27 +19,16 @@ bar_height = 26  # 菜单栏和状态栏高度
 class Editor(QWebEngineView):
     def __init__(self, par):
         super().__init__(par)
-        self.text = ''  # 输入的文本
-        self.editor_flag = []
+        self.load(QUrl.fromLocalFile(os.getcwd() + '/help/index.html'))
 
-        self.editor_index = os.getcwd() + '/help/index.html'
-        self.load(QUrl.fromLocalFile(self.editor_index))
-
-    def _callback(self, res):
-        self.text = res
-
-    def get_text(self, callback=_callback):
+    def get_text(self, callback):
         self.page().runJavaScript("monaco.editor.getModels()[0].getValue()", callback)
 
     def set_text(self, data):
         import base64
-        self.text = data
         data = base64.b64encode(data.encode()).decode()  # 编解码代码文件
         js_str = "monaco.editor.getModels()[0].setValue(Base64.decode('{}'))".format(data)
         self.page().runJavaScript(js_str)
-
-    def change_language(self, lan):
-        self.page().runJavaScript("monaco.editor.setModelLanguage(monaco.editor.getModels()[0],'{}')".format(lan))
 
 
 class MainWindow(QMainWindow):
@@ -83,6 +72,8 @@ class MainWindow(QMainWindow):
         self.nfa_window = None
         self.syntax_window = None
         self.grammar_window = None
+        self.semantic_win = None  # 语义分析结果窗口
+        self.semantic_info_win = None  # 语义信息窗口
 
     def init_menu_bar(self):
         self.menu_bar.setGeometry(0, 0, width, bar_height)
@@ -110,34 +101,34 @@ class MainWindow(QMainWindow):
             with open(self.file_path, 'r', encoding='utf-8') as f:
                 self.editor.set_text(f.read())
 
-    def __save_file_callback(self, res):
-        if self.file_path:
-            with open(self.file_path, 'w', encoding='utf-8', newline='') as f:
-                f.write(res)
-        else:
-            self.save_as_file()
-
-    def __save_as_callback(self, res):
-        if self.file_path:
-            with open(self.file_path, 'w', encoding='utf-8', newline='') as f:
-                f.write(res)
-
     def save_file(self):  # 保存文件
-        self.editor.get_text(self.__save_file_callback)
+        def callback(res):
+            if self.file_path:
+                with open(self.file_path, 'w', encoding='utf-8', newline='') as f:
+                    f.write(res)
+            else:
+                self.save_as_file()
+
+        self.editor.get_text(callback)
 
     def save_as_file(self):  # 文件另存为
-        self.file_path = QFileDialog.getSaveFileName(self, '', os.getcwd() + '/input', 'C(*.c);;Txt(*.txt)')[0]
-        self.editor.get_text(self.__save_as_callback)
+        def callback(res):
+            if self.file_path:
+                with open(self.file_path, 'w', encoding='utf-8', newline='') as f:
+                    f.write(res)
 
-    def __lexical_run_callback(self, res):
-        lexical = Lexical()
-        lexical.get_dfa('./help/dfa.json')
-        res = lexical.lexical_run(str(res).replace('\r\n', '\n'))  # 词法分析的token序列，要将window换行符'\r\n'转换
-        self.lexical_window = LexicalWindow(res)
-        self.lexical_window.show()
+        self.file_path = QFileDialog.getSaveFileName(self, '', os.getcwd() + '/input', 'C(*.c);;Txt(*.txt)')[0]
+        self.editor.get_text(callback)
 
     def lexical_run(self):  # 运行词法分析
-        self.editor.get_text(self.__lexical_run_callback)
+        def callback(res):
+            lexical = Lexical()
+            lexical.get_dfa('./help/dfa.json')
+            res = lexical.lexical_run(str(res).replace('\r\n', '\n'))  # 词法分析的token序列，要将window换行符'\r\n'转换
+            self.lexical_window = LexicalWindow(res)
+            self.lexical_window.show()
+
+        self.editor.get_text(callback)
 
     def dfa(self):  # dfa转换表
         lexical = Lexical()
@@ -153,50 +144,54 @@ class MainWindow(QMainWindow):
             self.nfa_window = NFAWindow(lexical.nfa, lexical.nfa2dfa())
             self.nfa_window.show()
 
-    def __syntax_run_callback(self, res):
-        lexical = Lexical()
-        lexical.get_dfa('./help/dfa.json')  # 读取DFA转换表
-        lexical_res = lexical.lexical_run(str(res).replace('\r\n', '\n'))  # 得到词法分析的token序列
-        tokens, nums_attr = [], []
-        if not lexical_res[0] and not lexical_res[1]:
-            QMessageBox.warning(self, '输入无效', '请输入有效程序文本')
-            return
-        for idx in range(len(lexical_res[0])):  # item[1]为种别码,item[3]为行号,item[2]为属性值
-            item = lexical_res[0][idx]
-            if 'comment' not in item[1]:
-                tokens.append(item[1])
-                nums_attr.append((item[3], item[2]))
-        syntax = Syntax()
-        syntax.syntax_init('./help/syntax.json')
-        syntax_lst, syntax_err = syntax.syntax_run(tokens, nums_attr)
-
-        self.syntax_window = QDialog()
-        ui = syntax_res.Ui_Dialog()
-        ui.setupUi(self.syntax_window)
-        self.syntax_window.setWindowIcon(QIcon('./help/system.ico'))
-        self.syntax_window.setWindowFlags(Qt.WindowCloseButtonHint | Qt.WindowMinMaxButtonsHint)
-        set_syntax_win(ui, syntax, syntax_lst, lexical_res[1], syntax_err)
-        self.syntax_window.show()
-
     def syntax_run(self):  # 运行语法分析
-        self.editor.get_text(self.__syntax_run_callback)
+        def callback(res):
+            lexical = Lexical()
+            lexical.get_dfa('./help/dfa.json')  # 读取DFA转换表
+            lexical_res = lexical.lexical_run(str(res).replace('\r\n', '\n'))  # 得到词法分析的token序列
+            tokens, nums_attr = [], []
+            if not lexical_res[0] and not lexical_res[1]:
+                QMessageBox.warning(self, '输入无效', '请输入有效程序文本')
+                return
+            for idx in range(len(lexical_res[0])):  # item[1]为种别码,item[3]为行号,item[2]为属性值
+                item = lexical_res[0][idx]
+                if 'comment' not in item[1]:
+                    tokens.append(item[1])
+                    nums_attr.append((item[3], item[2]))
+            syntax = Syntax()
+            syntax.syntax_init('./help/syntax.json')
+            syntax_lst, syntax_err = syntax.syntax_run(tokens, nums_attr)
+
+            self.syntax_window = QDialog()
+            ui = syntax_res.Ui_Dialog()
+            init_win(self.syntax_window, ui)
+            set_syntax_win(ui, syntax, syntax_lst, lexical_res[1], syntax_err)
+
+        self.editor.get_text(callback)
 
     def grammar(self):  # 展示语法分析中可以计算的集合和表
         syntax = Syntax()
         syntax.syntax_init('./help/syntax.json')
+        syntax.get_follow()
 
         self.grammar_window = QDialog()
         ui = syntax_grammar.Ui_dialog()
-        ui.setupUi(self.grammar_window)
-        self.grammar_window.setWindowFlags(Qt.WindowMinMaxButtonsHint | Qt.WindowCloseButtonHint)
+        init_win(self.grammar_window, ui)
         set_grammar_tbl(ui, syntax)
-        self.grammar_window.show()
 
-    def semantic_run(self):
-        print('2')
+    def semantic_run(self):  # 语义分析
+        def callback(res):
+            self.semantic_win = QDialog()
+            ui = semantic_res.Ui_Dialog()
+            init_win(self.semantic_win, ui)
+            print(res)
 
-    def semantic_info(self):
-        print('1')
+        self.editor.get_text(callback)
+
+    def semantic_info(self):  # 语义相关信息
+        self.semantic_info_win = QDialog()
+        ui = semantic_info.Ui_Dialog()
+        init_win(self.semantic_info_win, ui)
 
     def more(self):  # 待实现
         pass
@@ -371,6 +366,13 @@ class NFAWindow(QDialog):
             self.__info_table.setItem(idx, 1, QTableWidgetItem(' '.join('%s' % d for d in states[idx])))
 
 
+def init_win(win, ui):  # 初始化UI界面并显示
+    ui.setupUi(win)
+    win.setWindowIcon(QIcon('./help/system.ico'))
+    win.setWindowFlags(Qt.WindowCloseButtonHint | Qt.WindowMinMaxButtonsHint)
+    win.show()
+
+
 def set_grammar_tbl(ui: syntax_grammar.Ui_dialog, syntax: Syntax):
     ui.grammar_table.setRowCount(len(syntax.rules))  # 设置文法展示表和Select集的表
     ui.grammar_table.setVerticalHeaderLabels([str(idx) for idx in range(len(syntax.rules))])
@@ -455,5 +457,4 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = MainWindow(Editor(None))
     window.show()
-
     sys.exit(app.exec_())

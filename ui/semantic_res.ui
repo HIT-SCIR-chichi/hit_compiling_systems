@@ -13,10 +13,6 @@
   <property name="windowTitle">
    <string>语义分析</string>
   </property>
-  <property name="windowIcon">
-   <iconset>
-    <normaloff>../help/system.ico</normaloff>../help/system.ico</iconset>
-  </property>
  </widget>
  <resources/>
  <connections/>

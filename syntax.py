@@ -18,10 +18,9 @@ class Syntax:
         self.table = {}  # LR(1)预测分析表
         self.tree = None  # 语法分析树
 
-    def syntax_init(self, json_path: str):
+    def syntax_init(self, json_path='./help/syntax.json'):
         self.read_syntax(json_path)
         self.get_first()
-        self.get_follow()
         self.get_item_collection()
         self.get_table()
         self.tree = SyntaxNode(self.start_symbol)

@@ -16,6 +16,9 @@ class Ui_Dialog(object):
         Dialog.resize(960, 540)
         icon = QtGui.QIcon()
         icon.addPixmap(QtGui.QPixmap("../help/system.ico"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        icon.addPixmap(QtGui.QPixmap("../help/system.ico"), QtGui.QIcon.Normal, QtGui.QIcon.On)
+        icon.addPixmap(QtGui.QPixmap("../help/system.ico"), QtGui.QIcon.Disabled, QtGui.QIcon.Off)
+        icon.addPixmap(QtGui.QPixmap("../help/system.ico"), QtGui.QIcon.Disabled, QtGui.QIcon.On)
         Dialog.setWindowIcon(icon)
 
         self.retranslateUi(Dialog)
