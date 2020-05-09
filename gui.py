@@ -495,14 +495,20 @@ def set_semantic_win(ui: semantic_res.Ui_Dialog, semantic: Semantic):
             ui.symbol_tbl.setItem(symbol_num, 2, QTableWidgetItem(str(item[1][1])))
             ui.symbol_tbl.item(symbol_num, 0).setForeground(QBrush(color[idx % 2]))
             symbol_num += 1
-    ui.symbol_tbl.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
 
     ui.code_tbl.setRowCount(len(semantic.code))
     for idx in range(len(semantic.code)):
         three_addr, quarter = semantic.code[idx]
         ui.code_tbl.setItem(idx, 0, QTableWidgetItem('  '.join(three_addr.split())))
         ui.code_tbl.setItem(idx, 1, QTableWidgetItem('(%s)' % ', '.join(quarter.split())))
-    ui.code_tbl.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+
+    ui.err_tbl.setRowCount(len(semantic.err_info))
+    for idx in range(len(semantic.err_info)):
+        for idy, item in enumerate(semantic.err_info[idx]):
+            ui.err_tbl.setItem(idx, idy, QTableWidgetItem(str(item)))
+
+    for tbl in [ui.symbol_tbl,ui.code_tbl,ui.err_tbl]:
+        tbl.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
 
 
 if __name__ == "__main__":

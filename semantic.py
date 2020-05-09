@@ -3,7 +3,8 @@
 
 
 class Attribute:
-    def __init__(self, type='', width=0, name='', val='', addr='', offset='', next=None, true=None, false=None, quad=0):
+    def __init__(self, type='', width=0, name='', val='', addr='', offset='', next=None, true=None, false=None, quad=0,
+                 err=False):
         self.type = type  # 变量声明语句中的类型
         self.width = width  # 变量声明语句中的类型宽度
         self.name = name
@@ -16,6 +17,8 @@ class Attribute:
         self.true = true if true else []  # bool表达式语句
         self.false = false if false else []
         self.quad = quad  # M->null语句
+
+        self.err = err  # 是否遇到了语义错误
 
 
 class Tbl:  # 符号表
@@ -51,6 +54,8 @@ class Semantic:
 
         self.attr_stack = []  # 最后位置为栈顶位置
         self.action_dic = {}  # 动作执行
+        self.err_info = {}  # 错误信息表
+        self.line_num = -1  # 记录行号
 
     def mk_tbl(self):  # 创建一个符号表，并返回其对应的指针（即位置索引）
         self.tbl_lst.append(Tbl())  # todo 添加外围符号表标识
@@ -108,18 +113,18 @@ class Semantic:
         x_attr, id_val, c_attr = self.attr_stack[-4], self.attr_stack[-3].val, self.attr_stack[-2]
         self.attr_stack = self.attr_stack[:-4] + [Attribute(name='D')]
         if self.look_up(id_val, index=self.tbl_ptr[-1]):
-            print('重复声明')  # todo 错误处理
+            self.err_info[len(self.err_info)] = (self.line_num, '变量重复声明%s' % id_val, '忽略本次声明')
         else:
             self.enter(self.tbl_ptr[-1], id_val, c_attr.type, self.offset_ptr[-1])
-        self.offset_ptr[-1] += c_attr.width  # 栈顶偏移量变化
-        self.offset += c_attr.width  # 程序偏移量变化
+            self.offset_ptr[-1] += c_attr.width  # 栈顶偏移量变化
+            self.offset += c_attr.width  # 程序偏移量变化
 
     def rule_14(self):
         # D->struct id { N2 D } ;
         id_val = self.attr_stack[-6].val
         self.attr_stack = self.attr_stack[:-7] + [Attribute(name='D')]
         if self.look_up(id_val, self.tbl_ptr[-1]):
-            print('重复声明')  # todo 错误处理
+            self.err_info[len(self.err_info)] = (self.line_num, '变量重复声明%s' % id_val, '忽略本次记录声明')
         else:
             d_offset = self.offset_ptr.pop()
             self.tbl_ptr.pop()  # todo 这里可以对record类型进行具体化
@@ -163,17 +168,21 @@ class Semantic:
         # S->id=E; {p=lookup(id.lexeme); if p==nil then error; gencode(p'='E.addr); S.nextlist=null}
         id_val, e_addr = self.attr_stack[-4].val, self.attr_stack[-2].addr
         self.attr_stack = self.attr_stack[:-4] + [Attribute(next=[])]
-        if self.look_up(id_val):  # 查到对应引用
-            self.code[len(self.code)] = ('%s = %s' % (id_val, e_addr), '= %s _ %s' % (e_addr, id_val))
-        else:
-            print('未经声明的变量%s' % id_val)  # todo 错误处理
+        if not self.look_up(id_val):
+            self.err_info[len(self.err_info)] = (self.line_num, '变量未经声明%s' % id_val, '创建默认声明')
+            offset, type = 4, 'int'
+            self.enter(self.tbl_ptr[-1], id_val, type, self.offset_ptr[-1])
+            self.offset_ptr[-1] += offset
+            self.offset += offset
+        self.code[len(self.code)] = ('%s = %s' % (id_val, e_addr), '= %s _ %s' % (e_addr, id_val))
 
     def rule_6(self):
         # S->L=E; {gencode(L.array'['L.offset']''='E.addr); S.nextlist=null}
         l_attr, e_attr = self.attr_stack[-4], self.attr_stack[-2]
-        three_addr = '%s [ %s ] = %s' % (l_attr.val, l_attr.offset, e_attr.addr)
-        quaternion = '[]= %s %s %s' % (e_attr.addr, l_attr.val, l_attr.offset)
-        self.code[len(self.code)] = (three_addr, quaternion)
+        if not l_attr.err:
+            three_addr = '%s [ %s ] = %s' % (l_attr.val, l_attr.offset, e_attr.addr)
+            quaternion = '[]= %s %s %s' % (e_attr.addr, l_attr.val, l_attr.offset)
+            self.code[len(self.code)] = (three_addr, quaternion)
         self.attr_stack = self.attr_stack[:-4] + [Attribute(next=[])]
 
     def rule_31(self):
@@ -200,18 +209,24 @@ class Semantic:
         # E->id {E.addr=lookup(id.lexeme); if E.addr==null then error;}
         id_val = self.attr_stack.pop().val
         id_info = self.look_up(id_val)
-        if id_info:
-            self.attr_stack.append(Attribute(type=id_info[0], addr=id_val))
-        else:
-            print('未经声明的变量%s' % id_val)  # todo 错误处理
+        if not id_info:
+            self.err_info[len(self.err_info)] = (self.line_num, '变量未经声明%s' % id_val, '创建默认声明')
+            offset, type = 4, 'int'
+            self.enter(self.tbl_ptr[-1], id_val, type, self.offset_ptr[-1])
+            self.offset_ptr[-1] += offset
+            self.offset += offset
+        self.attr_stack.append(Attribute(type=id_info[0] if id_info else 'int', addr=id_val))
 
     def rule_35(self):
         # E->L {E.addr=newtemp(); gencode(E.addr'='L.array'['L.offset']');}
         l_attr, new_temp = self.attr_stack.pop(), self.new_temp()
-        three_addr = '%s = %s [ %s ]' % (new_temp, l_attr.val, str(l_attr.offset))
-        quaternion = '=[] %s %s %s' % (l_attr.val, str(l_attr.offset), new_temp)
-        self.code[len(self.code)] = (three_addr, quaternion)
-        self.attr_stack.append(Attribute(addr=new_temp, type=l_attr.type, val=l_attr.val))
+        if not l_attr.err:
+            three_addr = '%s = %s [ %s ]' % (new_temp, l_attr.val, str(l_attr.offset))
+            quaternion = '=[] %s %s %s' % (l_attr.val, str(l_attr.offset), new_temp)
+            self.code[len(self.code)] = (three_addr, quaternion)
+            self.attr_stack.append(Attribute(addr=new_temp, type=l_attr.type, val=l_attr.val))
+        else:
+            self.attr_stack.append(Attribute(addr=new_temp, name='E'))
 
     def rule_36_38(self):
         # E->Num|const_char|const_string {}
@@ -228,33 +243,51 @@ class Semantic:
         id, e_attr = self.attr_stack[-4], self.attr_stack[-2]
         l_symbol = self.look_up(id.val)
         if l_symbol:
-            type = l_symbol[0][l_symbol[0].index(',') + 1:len(l_symbol[0]) - 1]
-            width = self.get_type_width(type)
             if 'array' in l_symbol[0]:
-                new_t = self.new_temp()
-                self.attr_stack = self.attr_stack[:-4] + [Attribute(offset=new_t, name=id.name, val=id.val, type=type)]
-                three_addr = '%s = %s * %d' % (new_t, e_attr.addr, width)
-                quaternion = '* %s %d %s' % (e_attr.addr, width, new_t)
-                self.code[len(self.code)] = (three_addr, quaternion)
+                if e_attr.name in ['const_char', 'const_string', 'const_float', 'e-notation']:
+                    self.err_info[len(self.err_info)] = (self.line_num, '数组下标不是整数', '忽略该引用')
+                    self.attr_stack = self.attr_stack[:-4] + [Attribute(name='L', err=True)]
+                else:
+                    type = l_symbol[0][l_symbol[0].index(',') + 1:len(l_symbol[0]) - 1]
+                    width = self.get_type_width(type)
+                    new_t = self.new_temp()
+                    self.attr_stack = self.attr_stack[:-4] + [
+                        Attribute(offset=new_t, name=id.name, val=id.val, type=type)]
+                    three_addr = '%s = %s * %d' % (new_t, e_attr.addr, width)
+                    quaternion = '* %s %d %s' % (e_attr.addr, width, new_t)
+                    self.code[len(self.code)] = (three_addr, quaternion)
             else:
-                print('对非数组变量使用数组操作符')
+                self.err_info[len(self.err_info)] = (self.line_num, '对非数组变量使用数组操作符%s' % id.val, '忽略该引用')
+                self.attr_stack = self.attr_stack[:-4] + [Attribute(name='L', err=True)]
         else:
-            print('未经声明的变量%s' % id.val)  # todo 错误处理
+            self.err_info[len(self.err_info)] = (self.line_num, '变量未经声明%s' % id.val, '忽略该引用')
+            self.attr_stack = self.attr_stack[:-4] + [Attribute(name='L', err=True)]
 
     def rule_46(self):
         # L->L[E] {L.array=L1.array; L.type=L1.type.elem; t=newtemp(); gencode(t'='E.addr'*'L.type.width); L.offset=newtemp(); gencode(L.offset'='L1.offset'+'t);}
         l_attr, e_attr = self.attr_stack[-4], self.attr_stack[-2]
         new_temp0, new_temp1 = self.new_temp(), self.new_temp()
-        type = l_attr.type[l_attr.type.index(',') + 1:len(l_attr.type) - 1]
-        width = self.get_type_width(type)
-        three_addr = '%s = %s * %d' % (new_temp0, e_attr.addr, width)
-        quaternion = '* % s %s %s' % (e_attr.addr, width, new_temp0)
-        self.code[len(self.code)] = (three_addr, quaternion)
-        self.attr_stack = self.attr_stack[:-4] + [
-            Attribute(name=l_attr.name, type=type, offset=new_temp1, val=l_attr.val)]
-        three_addr = '%s = %s + %s' % (new_temp1, l_attr.offset, new_temp0)
-        quaternion = '+ %s %s %s' % (l_attr.offset, new_temp0, new_temp1)
-        self.code[len(self.code)] = (three_addr, quaternion)
+        if not l_attr.err:
+            if 'array' in l_attr.type:
+                if e_attr.name in ['const_char', 'const_string', 'const_float', 'e-notation']:
+                    self.err_info[len(self.err_info)] = (self.line_num, '数组下标不是整数', '忽略该引用')
+                    self.attr_stack = self.attr_stack[:-4] + [Attribute(name='L', err=True)]
+                else:
+                    type = l_attr.type[l_attr.type.index(',') + 1:len(l_attr.type) - 1]
+                    width = self.get_type_width(type)
+                    three_addr = '%s = %s * %d' % (new_temp0, e_attr.addr, width)
+                    quaternion = '* % s %s %s' % (e_attr.addr, width, new_temp0)
+                    self.code[len(self.code)] = (three_addr, quaternion)
+                    self.attr_stack = self.attr_stack[:-4] + [
+                        Attribute(name=l_attr.name, type=type, offset=new_temp1, val=l_attr.val)]
+                    three_addr = '%s = %s + %s' % (new_temp1, l_attr.offset, new_temp0)
+                    quaternion = '+ %s %s %s' % (l_attr.offset, new_temp0, new_temp1)
+                    self.code[len(self.code)] = (three_addr, quaternion)
+            else:
+                self.err_info[len(self.err_info)] = (self.line_num, '对非数组变量使用数组操作符%s' % l_attr.val, '忽略该引用')
+                self.attr_stack = self.attr_stack[:-4] + [Attribute(name='L', err=True)]
+        else:
+            self.attr_stack = self.attr_stack[:-4] + [Attribute(name='L', err=True)]
 
     """布尔表达式语句的回填相关语义动作"""
 
@@ -358,18 +391,18 @@ class Semantic:
     def rule_10(self):
         # S->call id ( Elst ) ;   {n=0; for queue中的每个t do {gencode('param't); n=n+1} gencode('call'id.addr','n);} {S.nextlist=null;}
         elst_attr, id_val = self.attr_stack[-3], self.attr_stack[-5].val
+        self.attr_stack = self.attr_stack[:-6] + [Attribute(next=[])]
         res = self.look_up(id_val)
         if res:
             if res[0] != 'proc':
-                print('对%s类型使用非法的函数调用操作符' % res[0])
+                self.err_info[len(self.err_info)] = (self.line_num, '对非过程名使用过程调用操作符%s' % id_val, '忽略该调用')
             else:
                 for para in reversed(self.para_q):
                     self.code[len(self.code)] = ('param %s' % para, 'param _ _ %s' % para)
                 self.code[len(self.code)] = (
                     'call %s , %d' % (id_val, len(self.para_q)), 'call %s %d _' % (id_val, len(self.para_q)))
-                self.attr_stack = self.attr_stack[:-6] + [Attribute(next=[])]
         else:
-            print('未经声明的函数%s' % id_val)
+            self.err_info[len(self.err_info)] = (self.line_num, '函数未经声明%s' % id_val, '忽略该调用')
 
     def rule_60(self):
         # Elst->Elst,E {将E.addr添加到q的队尾}
@@ -473,6 +506,7 @@ class Semantic:
                     nodes.insert(0, syntax_node)
                     tokens.pop(0)
                     nums_attr.pop(0)
+                    self.line_num = top_num_attr[0]
                     self.attr_stack.append(Attribute(name=top_token, val=top_num_attr[1]))
                 elif op[0] == 'r':  # 规约
                     non_term, symbols = syntax.rules[int(op[1])]
