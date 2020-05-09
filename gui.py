@@ -76,6 +76,8 @@ class MainWindow(QMainWindow):
         self.semantic_win = None  # 语义分析结果窗口
         self.semantic_info_win = None  # 语义信息窗口
 
+        self.syntax = None
+
     def init_menu_bar(self):
         self.menu_bar.setGeometry(0, 0, width, bar_height)
         for menu_bar in [self.file_menu, self.lexical_menu, self.syntax_menu, self.semantic_menu, self.about_menu]:
@@ -182,7 +184,6 @@ class MainWindow(QMainWindow):
 
     def semantic_run(self):  # 语义分析
         def callback(res):
-
             lexical = Lexical()
             lexical.get_dfa('./help/dfa.json')  # 读取DFA转换表
             lexical_res = lexical.lexical_run(str(res).replace('\r\n', '\n'))  # 得到词法分析的token序列
@@ -195,22 +196,26 @@ class MainWindow(QMainWindow):
                 if 'comment' not in item[1]:
                     tokens.append(item[1])
                     nums_attr.append((item[3], item[2]))
+            if not self.syntax:
+                self.syntax = Syntax()
+                self.syntax.syntax_init('./help/semantic.json')
             semantic = Semantic()
-            syntax_lst, syntax_err = semantic.semantic_run(tokens, nums_attr)
-
-            self.syntax_window = QDialog()
-            ui = syntax_res.Ui_Dialog()
-
+            res_lst, res_err = semantic.semantic_run(tokens, nums_attr, self.syntax)
             self.semantic_win = QDialog()
             ui = semantic_res.Ui_Dialog()
             init_win(self.semantic_win, ui)
+            set_semantic_win(ui, semantic)
 
         self.editor.get_text(callback)
 
     def semantic_info(self):  # 语义相关信息
+        if not self.syntax:
+            self.syntax = Syntax()
+            self.syntax.syntax_init('./help/semantic.json')
         self.semantic_info_win = QDialog()
         ui = semantic_info.Ui_Dialog()
         init_win(self.semantic_info_win, ui)
+        _set_grammar_tbl(ui.grammar_tbl, self.syntax)
 
     def more(self):  # 待实现
         pass
@@ -392,11 +397,16 @@ def init_win(win, ui):  # 初始化UI界面并显示
     win.show()
 
 
-def set_grammar_tbl(ui: syntax_grammar.Ui_dialog, syntax: Syntax):
-    ui.grammar_table.setRowCount(len(syntax.rules))  # 设置文法展示表和Select集的表
-    ui.grammar_table.setVerticalHeaderLabels([str(idx) for idx in range(len(syntax.rules))])
+def _set_grammar_tbl(grammar_tbl, syntax):
+    grammar_tbl.setRowCount(len(syntax.rules))
+    grammar_tbl.setVerticalHeaderLabels([str(idx) for idx in range(len(syntax.rules))])
     for idx, rule in enumerate(syntax.rules):
-        ui.grammar_table.setItem(idx, 0, QTableWidgetItem(rule[0] + '->' + ' '.join(rule[1])))  # 产生式
+        grammar_tbl.setItem(idx, 0, QTableWidgetItem(rule[0] + '->' + ' '.join(rule[1])))  # 产生式
+    grammar_tbl.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+
+
+def set_grammar_tbl(ui: syntax_grammar.Ui_dialog, syntax: Syntax):
+    _set_grammar_tbl(ui.grammar_table, syntax)
 
     ui.lst_table.setRowCount(len(syntax.non_terminals))  # 设置First集和Follow集的展示表
     for idx, non_term in enumerate(syntax.non_terminals):
@@ -470,6 +480,29 @@ def set_syntax_win(ui: syntax_res.Ui_Dialog, syntax: Syntax, syntax_lst: list, l
         ui.error_table.item(idx + len(lexical_err), 0).setForeground(QBrush(QColor(0, 0, 255)))
         ui.error_table.setItem(idx + len(lexical_err), 1, QTableWidgetItem(item[1]))
         ui.error_table.setItem(idx + len(lexical_err), 2, QTableWidgetItem(item[2]))
+
+
+def set_semantic_win(ui: semantic_res.Ui_Dialog, semantic: Semantic):
+    symbol_num = 0
+    for tbl in semantic.tbl_lst:
+        symbol_num += len(tbl)
+    ui.symbol_tbl.setRowCount(symbol_num)
+    symbol_num, color = 0, [QColor(255, 0, 0), QColor(0, 255, 255)]
+    for idx, tbl in enumerate(semantic.tbl_lst):
+        for item in tbl.symbol_lst.items():
+            ui.symbol_tbl.setItem(symbol_num, 0, QTableWidgetItem(item[0]))
+            ui.symbol_tbl.setItem(symbol_num, 1, QTableWidgetItem(item[1][0]))
+            ui.symbol_tbl.setItem(symbol_num, 2, QTableWidgetItem(str(item[1][1])))
+            ui.symbol_tbl.item(symbol_num, 0).setForeground(QBrush(color[idx % 2]))
+            symbol_num += 1
+    ui.symbol_tbl.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+
+    ui.code_tbl.setRowCount(len(semantic.code))
+    for idx in range(len(semantic.code)):
+        three_addr, quarter = semantic.code[idx]
+        ui.code_tbl.setItem(idx, 0, QTableWidgetItem('  '.join(three_addr.split())))
+        ui.code_tbl.setItem(idx, 1, QTableWidgetItem('(%s)' % ', '.join(quarter.split())))
+    ui.code_tbl.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
 
 
 if __name__ == "__main__":

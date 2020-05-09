@@ -29,6 +29,9 @@ class Tbl:  # 符号表
     def __contains__(self, item):
         return item in self.symbol_lst
 
+    def __len__(self):
+        return len(self.symbol_lst)
+
 
 class Semantic:
     def __init__(self):
@@ -83,8 +86,6 @@ class Semantic:
 
     def back_patch(self, lst: list, quad: int):
         for idx in lst:
-            if idx == 19:
-                print('test')
             self.code[idx] = (self.code[idx][0] + str(quad), self.code[idx][1] + str(quad))
 
     """下面是声明语句翻译语句语句对应的动作"""
@@ -405,15 +406,13 @@ class Semantic:
         # D->DD
         self.attr_stack = self.attr_stack[:-2] + [Attribute(name='D')]
 
-    def semantic_run(self, tokens, nums_attr):  # 运行语义分析
+    def semantic_run(self, tokens, nums_attr, syntax):  # 运行语义分析
         def set_children():  # 由于自底向上分析只能获得父节点，因此需要再次处理，设置子节点
             for node in all_nodes:
                 if node.parent is not None:
                     node.parent.add_child(node)
 
-        from syntax import Syntax, SyntaxNode
-        syntax = Syntax()
-        syntax.syntax_init('./help/semantic.json')
+        from syntax import SyntaxNode
         self.action_init()
         self.mk_tbl()
 
@@ -491,8 +490,7 @@ class Semantic:
                     nodes.insert(0, parent_node)
                     states = states[len(symbols) if symbols[0] != syntax.empty_str else 0:]
                     states.insert(0, syntax.table[states[0]][non_term])
-                    # eval(self.action_dic[int(op[1])])  # 执行语义动作
-                    self.action_do(int(op[1]))
+                    eval(self.action_dic[int(op[1])])  # 执行语义动作
 
     def action_init(self):
         for func in dir(self):
@@ -504,95 +502,3 @@ class Semantic:
                     idx, idy = int(item[1]), int(item[2])
                     for count in range(idx, idy + 1):
                         self.action_dic[count] = func
-
-    def action_do(self, index: int):
-        if index == 0:
-            self.rule_0()
-        elif index == 10:
-            self.rule_10()
-        elif index == 11:
-            self.rule_11()
-        elif index == 12:
-            self.rule_12()
-        elif index == 13:
-            self.rule_13()
-        elif index == 14:
-            self.rule_14()
-        elif 15 <= index <= 22:
-            self.rule_15_22()
-        elif index == 1:
-            self.rule_1()
-        elif index == 2:
-            self.rule_2()
-        elif index == 23:
-            self.rule_23()
-        elif index == 24:
-            self.rule_24()
-        elif 25 <= index <= 30:
-            self.rule_25_30()
-        elif index == 3:
-            self.rule_3()
-        elif index == 31:
-            self.rule_31()
-        elif index == 32:
-            self.rule_32()
-        elif index == 33:
-            self.rule_33()
-        elif index == 34:
-            self.rule_34()
-        elif index == 35:
-            self.rule_35()
-        elif 36 <= index <= 38:
-            self.rule_36_38()
-        elif 39 <= index <= 44:
-            self.rule_39_44()
-        elif index == 4:
-            self.rule_4()
-        elif index == 45:
-            self.rule_45()
-        elif index == 46:
-            self.rule_46()
-        elif index == 47:
-            self.rule_47()
-        elif index == 48:
-            self.rule_48()
-        elif index == 49:
-            self.rule_49()
-        elif index == 5:
-            self.rule_5()
-        elif index == 50:
-            self.rule_50()
-        elif index == 51:
-            self.rule_51()
-        elif index in [52, 53]:
-            self.rule_52_53()
-        elif 54 <= index <= 59:
-            self.rule_54_59()
-        elif index == 6:
-            self.rule_6()
-        elif index == 60:
-            self.rule_60()
-        elif index == 61:
-            self.rule_61()
-        elif index == 62:
-            self.rule_62()
-        elif index == 63:
-            self.rule_63()
-        elif index == 64:
-            self.rule_64()
-        elif index == 65:
-            self.rule_65()
-        elif index == 7:
-            self.rule_7()
-        elif index == 8:
-            self.rule_8()
-        elif index == 9:
-            self.rule_9()
-
-
-def main():
-    semantic = Semantic()
-
-
-if __name__ == '__main__':
-    main()
