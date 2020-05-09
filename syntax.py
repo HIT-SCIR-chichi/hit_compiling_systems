@@ -257,8 +257,6 @@ class SyntaxNode:
         self.line_num = line_num
         self.attribute = attribute  # 词法属性值
 
-        self.addr = None
-
     def add_child(self, child):
         self.children.append(child)
 

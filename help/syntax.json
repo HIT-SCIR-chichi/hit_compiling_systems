@@ -23,7 +23,7 @@
     ],
     "D": [
       "D D",
-      "proc id ; D S",
+      "proc id ; { D S }",
       "X id C ;",
       "struct id { D } ;"
     ],

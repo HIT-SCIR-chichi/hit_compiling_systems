@@ -9,7 +9,7 @@
     ],
     "P": [
       "D P",
-      "S P",
+      "S M1 P",
       "null"
     ],
     "S": [
@@ -18,14 +18,14 @@
       "L = E ;",
       "if B then M1 S",
       "if B then M1 S N3 else M1 S",
-      "while M1 B do M1 S",
+      "while M1 B do { M1 S }",
       "call id ( ELst ) ;"
     ],
     "D": [
       "D D",
-      "proc id ; N1 D S",
+      "proc id ; { N1 D S }",
       "X id C ;",
-      "struct id { D } ;"
+      "struct id N2 { D } ;"
     ],
     "X": [
       "int",

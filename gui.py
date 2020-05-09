@@ -6,6 +6,7 @@ from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtGui import QIcon, QKeySequence, QFont, QColor, QBrush
 from PyQt5.QtCore import QUrl, Qt
 from lexical import Lexical
+from semantic import Semantic
 from syntax import Syntax
 from ui import syntax_grammar, syntax_res, semantic_res, semantic_info
 import sys
@@ -181,10 +182,28 @@ class MainWindow(QMainWindow):
 
     def semantic_run(self):  # 语义分析
         def callback(res):
+
+            lexical = Lexical()
+            lexical.get_dfa('./help/dfa.json')  # 读取DFA转换表
+            lexical_res = lexical.lexical_run(str(res).replace('\r\n', '\n'))  # 得到词法分析的token序列
+            tokens, nums_attr = [], []
+            if not lexical_res[0] and not lexical_res[1]:
+                QMessageBox.warning(self, '输入无效', '请输入有效程序文本')
+                return
+            for idx in range(len(lexical_res[0])):  # item[1]为种别码,item[3]为行号,item[2]为属性值
+                item = lexical_res[0][idx]
+                if 'comment' not in item[1]:
+                    tokens.append(item[1])
+                    nums_attr.append((item[3], item[2]))
+            semantic = Semantic()
+            syntax_lst, syntax_err = semantic.semantic_run(tokens, nums_attr)
+
+            self.syntax_window = QDialog()
+            ui = syntax_res.Ui_Dialog()
+
             self.semantic_win = QDialog()
             ui = semantic_res.Ui_Dialog()
             init_win(self.semantic_win, ui)
-            print(res)
 
         self.editor.get_text(callback)
 

@@ -3,9 +3,10 @@
 
 
 class Attribute:
-    def __init__(self, type='', width=0, val='', addr='', offset='', next=None, true=None, false=None, quad=0):
+    def __init__(self, type='', width=0, name='', val='', addr='', offset='', next=None, true=None, false=None, quad=0):
         self.type = type  # 变量声明语句中的类型
         self.width = width  # 变量声明语句中的类型宽度
+        self.name = name
         self.val = val  # 词法值
 
         self.addr = addr  # 表达式赋值的综合属性
@@ -22,8 +23,8 @@ class Tbl:  # 符号表
         self.outer_idx = 0  # 外围符号表索引 todo
         self.symbol_lst = {}  # {name:(type, offset, width)}
 
-    def add_symbol(self, name, type, offset, width=0):
-        self.symbol_lst[name] = (type, offset, width)
+    def add_symbol(self, name, type, offset):
+        self.symbol_lst[name] = (type, offset)
 
     def __contains__(self, item):
         return item in self.symbol_lst
@@ -36,8 +37,8 @@ class Semantic:
         self.info = {'t': '', 'w': 0}  # 传递语法树信息
 
         self.tbl_lst = []  # 符号表列表，列表元素为Tbl
-        self.tbl_ptr = []  # 符号表指针栈[index]index指向self.tbl_lst中的一个符号表
-        self.offset_ptr = []  # 偏移指针栈
+        self.tbl_ptr = [0]  # 符号表指针栈[index]index指向self.tbl_lst中的一个符号表
+        self.offset_ptr = [0]  # 偏移指针栈
 
         self.para_q = []  # 过程调用中断的参数栈，队首在列表最后位置，队尾在index=0处
 
@@ -46,6 +47,7 @@ class Semantic:
         self.code = {}  # 三地址指令和四元式表示{0: (three_addr, quaternion), 1: (three_addr, quaternion)}
 
         self.attr_stack = []  # 最后位置为栈顶位置
+        self.action_dic = {}  # 动作执行
 
     def mk_tbl(self):  # 创建一个符号表，并返回其对应的指针（即位置索引）
         self.tbl_lst.append(Tbl())  # todo 添加外围符号表标识
@@ -58,7 +60,7 @@ class Semantic:
 
     def look_up(self, name, index=-1):
         if index != -1:
-            res = self.tbl_lst[index].symbol_lst[name] if name in self.tbl_lst[index] else None
+            return self.tbl_lst[index].symbol_lst[name] if name in self.tbl_lst[index] else None
         else:
             for idx, tbl in enumerate(self.tbl_lst):
                 if name in tbl:
@@ -81,63 +83,65 @@ class Semantic:
 
     def back_patch(self, lst: list, quad: int):
         for idx in lst:
-            self.code[idx] = (self.code[idx][0] + quad, self.code[idx][1] + quad)
+            if idx == 19:
+                print('test')
+            self.code[idx] = (self.code[idx][0] + str(quad), self.code[idx][1] + str(quad))
 
     """下面是声明语句翻译语句语句对应的动作"""
 
     def rule_12(self):
-        # D->proc id ; N1 D S {t=top(tblptr); addwidth(t, top(offset)); pop(tblptr); pop(offset); enterproc(top(tblptr),id.name,t)
+        # D->proc id ; {N1 D S} {t=top(tblptr); addwidth(t, top(offset)); pop(tblptr); pop(offset); enterproc(top(tblptr),id.name,t)
         t = self.tbl_ptr.pop()
         self.offset_ptr.pop()
-        self.enter(self.tbl_ptr[-1], self.attr_stack[-5].val, 'proc', t)
-        self.attr_stack = self.attr_stack[:-6] + [Attribute(val='D')]
+        self.enter(self.tbl_ptr[-1], self.attr_stack[-7].val, 'proc', t)
+        self.attr_stack = self.attr_stack[:-8] + [Attribute(name='D')]
 
     def rule_62(self):
         # N1->null，t=mktable(top(tblptr)); push(t, tblptr); push(0, offset)
         self.tbl_ptr.append(self.mk_tbl())
         self.offset_ptr.append(0)
-        self.attr_stack.append(Attribute(val='N1'))
+        self.attr_stack.append(Attribute(name='N1'))
 
     def rule_13(self):
-        # D->X id C
-        x_attr, id_name, c_attr = self.attr_stack[-3], self.attr_stack[-2].val, self.attr_stack[-1]
-        self.attr_stack = self.attr_stack[:-3] + [Attribute(val='D')]
-        if self.look_up(id_name, self.tbl_ptr[-1]):
+        # D->X id C;
+        x_attr, id_val, c_attr = self.attr_stack[-4], self.attr_stack[-3].val, self.attr_stack[-2]
+        self.attr_stack = self.attr_stack[:-4] + [Attribute(name='D')]
+        if self.look_up(id_val, index=self.tbl_ptr[-1]):
             print('重复声明')  # todo 错误处理
         else:
-            self.enter(self.tbl_ptr[-1], id_name, c_attr.type, self.offset_ptr[-1])
-            self.offset_ptr += c_attr.width  # 栈顶偏移量变化
-            self.offset += c_attr.width  # 程序偏移量变化
+            self.enter(self.tbl_ptr[-1], id_val, c_attr.type, self.offset_ptr[-1])
+        self.offset_ptr[-1] += c_attr.width  # 栈顶偏移量变化
+        self.offset += c_attr.width  # 程序偏移量变化
 
     def rule_14(self):
         # D->struct id { N2 D } ;
-        id_name = self.attr_stack[-6].val
-        self.attr_stack = self.attr_stack[:-7] + [Attribute(val='D')]
-        if self.look_up(id_name, self.tbl_ptr[-1]):
+        id_val = self.attr_stack[-6].val
+        self.attr_stack = self.attr_stack[:-7] + [Attribute(name='D')]
+        if self.look_up(id_val, self.tbl_ptr[-1]):
             print('重复声明')  # todo 错误处理
         else:
             d_offset = self.offset_ptr.pop()
             self.tbl_ptr.pop()  # todo 这里可以对record类型进行具体化
-            self.enter(self.tbl_ptr[-1], id_name, 'record', d_offset)
-            self.offset_ptr += d_offset
+            self.enter(self.tbl_ptr[-1], id_val, 'record', d_offset)
+            self.offset_ptr[-1] += d_offset
             self.offset += d_offset
 
     def rule_63(self):
         # N2->null {t=mk_tbl(nil); push(t, tbl_ptr), push(0, offset_ptr)}
         self.tbl_ptr.append(self.mk_tbl())
         self.offset_ptr.append(0)
-        self.attr_stack.append(Attribute(val='N2'))
+        self.attr_stack.append(Attribute(name='N2'))
 
     def rule_15_22(self):
         # X->long|double|float|int|unsigned|short|bool|char
-        val = self.attr_stack.pop().val
+        val = self.attr_stack.pop().name
         width = 1 if val in ('bool', 'char') else 2 if val == 'short' else 8 if val in ('long', 'double') else 4
         self.info['t'], self.info['w'] = val, width  # 临时变量，用于计算数组类型及宽度
         self.attr_stack.append(Attribute(type=val, width=width))
 
     def rule_23(self):
         # C->[Num]C {C.type=array(num.val,C1.type); C.width=num.val*C1.width;}
-        num, c1 = self.attr_stack[-3].val, self.attr_stack[-1]
+        num, c1 = int(self.attr_stack[-3].val), self.attr_stack[-1]
         self.attr_stack = self.attr_stack[:-4] + [Attribute(type='array(%d,%s)' % (num, c1.type), width=num * c1.width)]
 
     def rule_24(self):
@@ -147,24 +151,27 @@ class Semantic:
     def rule_25_30(self):
         # Num->dec|oct|hex|const_int|const_float|e-notation
         right = self.attr_stack.pop()
-        self.attr_stack.append(Attribute(val=right.val, type=right.type))
+        type, name, val = right.type, right.name, right.val
+        if name in ['dec', 'oct', 'hex']:
+            val = int(val, 8 if name == 'dec' else 16 if name == 'hex' else 10)
+        self.attr_stack.append(Attribute(name=name, type=type, val=str(val)))
 
-    """下面是赋值语句翻译语句语句对应的动作"""
+        """下面是赋值语句翻译语句语句对应的动作"""
 
     def rule_5(self):
         # S->id=E; {p=lookup(id.lexeme); if p==nil then error; gencode(p'='E.addr); S.nextlist=null}
-        id_name, e_addr = self.attr_stack[-4].val, self.attr_stack[-2].addr
+        id_val, e_addr = self.attr_stack[-4].val, self.attr_stack[-2].addr
         self.attr_stack = self.attr_stack[:-4] + [Attribute(next=[])]
-        if self.look_up(id_name):  # 查到对应引用
-            self.code[len(self.code)] = ('%s = %s' % (id_name, e_addr), '= %s _ %s' % (e_addr, id_name))
+        if self.look_up(id_val):  # 查到对应引用
+            self.code[len(self.code)] = ('%s = %s' % (id_val, e_addr), '= %s _ %s' % (e_addr, id_val))
         else:
-            print('未经声明的变量%s' % id_name)  # todo 错误处理
+            print('未经声明的变量%s' % id_val)  # todo 错误处理
 
     def rule_6(self):
         # S->L=E; {gencode(L.array'['L.offset']''='E.addr); S.nextlist=null}
         l_attr, e_attr = self.attr_stack[-4], self.attr_stack[-2]
-        three_addr = '%s [ %d ] = %s' % (l_attr.val, l_attr.offset, e_attr.addr)
-        quaternion = '[]= %s %d %s' % (e_attr.addr, l_attr.val, l_attr.offset)
+        three_addr = '%s [ %s ] = %s' % (l_attr.val, l_attr.offset, e_attr.addr)
+        quaternion = '[]= %s %s %s' % (e_attr.addr, l_attr.val, l_attr.offset)
         self.code[len(self.code)] = (three_addr, quaternion)
         self.attr_stack = self.attr_stack[:-4] + [Attribute(next=[])]
 
@@ -172,8 +179,8 @@ class Semantic:
         # E->E Op E {E.addr=newtemp(); gencode(E.addr '=' E1.addr 'op' E2.addr);}
         new_temp = self.new_temp()  # todo 类型判断与自动转换
         e1_attr, op_attr, e2_attr = self.attr_stack[-3], self.attr_stack[-2], self.attr_stack[-1]
-        three_addr = '%s = %s %s %s' % (new_temp, e1_attr.addr, op_attr.val, e2_attr.addr)
-        quaternion = '%s %s %s %s' % (op_attr.val, e1_attr.addr, e2_attr.addr, new_temp)
+        three_addr = '%s = %s %s %s' % (new_temp, e1_attr.addr, op_attr.name, e2_attr.addr)
+        quaternion = '%s %s %s %s' % (op_attr.name, e1_attr.addr, e2_attr.addr, new_temp)
         self.code[len(self.code)] = (three_addr, quaternion)
         self.attr_stack = self.attr_stack[:-3] + [Attribute(addr=new_temp, type=e1_attr.type)]
 
@@ -190,48 +197,48 @@ class Semantic:
 
     def rule_34(self):
         # E->id {E.addr=lookup(id.lexeme); if E.addr==null then error;}
-        id_name = self.attr_stack.pop().val
-        id_info = self.look_up(id_name)
+        id_val = self.attr_stack.pop().val
+        id_info = self.look_up(id_val)
         if id_info:
-            self.attr_stack.append(Attribute(type=id_info[0], addr=id_name))
+            self.attr_stack.append(Attribute(type=id_info[0], addr=id_val))
         else:
-            print('未经声明的变量%s' % id_name)  # todo 错误处理
+            print('未经声明的变量%s' % id_val)  # todo 错误处理
 
     def rule_35(self):
         # E->L {E.addr=newtemp(); gencode(E.addr'='L.array'['L.offset']');}
         l_attr, new_temp = self.attr_stack.pop(), self.new_temp()
-        three_addr = '%s = %s [ %d ]' % (new_temp, l_attr.val, l_attr.offset)
-        quaternion = '=[] %s %d %s' % (l_attr.val, l_attr.offset, new_temp)
+        three_addr = '%s = %s [ %s ]' % (new_temp, l_attr.val, str(l_attr.offset))
+        quaternion = '=[] %s %s %s' % (l_attr.val, str(l_attr.offset), new_temp)
         self.code[len(self.code)] = (three_addr, quaternion)
-        self.attr_stack.append(Attribute(addr=l_attr.val, type=l_attr.type))
+        self.attr_stack.append(Attribute(addr=new_temp, type=l_attr.type, val=l_attr.val))
 
     def rule_36_38(self):
         # E->Num|const_char|const_string {}
         num = self.attr_stack.pop()
-        self.attr_stack.append(Attribute(val=num.val, type=num.type))
+        self.attr_stack.append(Attribute(name=num.name, type=num.type, addr=num.val))
 
     def rule_39_44(self):
         # Op->+|-|*|/|%|^
-        op_val = self.attr_stack.pop().val
-        self.attr_stack.append(Attribute(val=op_val))
+        op_val = self.attr_stack.pop().name
+        self.attr_stack.append(Attribute(name=op_val))
 
     def rule_45(self):
         # L->id[E] {L.array=lookup(id.lexeme); if L.array==nil then error; L.type=L.array.type.elem; L.offset=newtemp(); gencode(L.offset'='E.addr'*'L.type.width);}
-        id_name, e_attr = self.attr_stack[-4].val, self.attr_stack[-2]
-        l_symbol = self.look_up(id_name)
-        type = l_symbol[0][l_symbol[0].index(',') + 1:len(l_symbol[0]) - 1]
-        width = self.get_type_width(type)
+        id, e_attr = self.attr_stack[-4], self.attr_stack[-2]
+        l_symbol = self.look_up(id.val)
         if l_symbol:
+            type = l_symbol[0][l_symbol[0].index(',') + 1:len(l_symbol[0]) - 1]
+            width = self.get_type_width(type)
             if 'array' in l_symbol[0]:
-                new_temp = self.new_temp()
-                self.attr_stack = self.attr_stack[:-4] + [Attribute(offset=new_temp, val=id_name, type=type)]
-                three_addr = '%s = %s * %d' % (new_temp, e_attr.addr, width)
-                quaternion = '* %s %d %s' % (e_attr.addr, width, new_temp)
+                new_t = self.new_temp()
+                self.attr_stack = self.attr_stack[:-4] + [Attribute(offset=new_t, name=id.name, val=id.val, type=type)]
+                three_addr = '%s = %s * %d' % (new_t, e_attr.addr, width)
+                quaternion = '* %s %d %s' % (e_attr.addr, width, new_t)
                 self.code[len(self.code)] = (three_addr, quaternion)
             else:
                 print('对非数组变量使用数组操作符')
         else:
-            print('未经声明的变量%s' % id_name)  # todo 错误处理
+            print('未经声明的变量%s' % id.val)  # todo 错误处理
 
     def rule_46(self):
         # L->L[E] {L.array=L1.array; L.type=L1.type.elem; t=newtemp(); gencode(t'='E.addr'*'L.type.width); L.offset=newtemp(); gencode(L.offset'='L1.offset'+'t);}
@@ -242,7 +249,8 @@ class Semantic:
         three_addr = '%s = %s * %d' % (new_temp0, e_attr.addr, width)
         quaternion = '* % s %s %s' % (e_attr.addr, width, new_temp0)
         self.code[len(self.code)] = (three_addr, quaternion)
-        self.attr_stack = self.attr_stack[:-4] + [Attribute(val=l_attr.val, type=type, offset=new_temp1)]
+        self.attr_stack = self.attr_stack[:-4] + [
+            Attribute(name=l_attr.name, type=type, offset=new_temp1, val=l_attr.val)]
         three_addr = '%s = %s + %s' % (new_temp1, l_attr.offset, new_temp0)
         quaternion = '+ %s %s %s' % (l_attr.offset, new_temp0, new_temp1)
         self.code[len(self.code)] = (three_addr, quaternion)
@@ -259,7 +267,7 @@ class Semantic:
         self.back_patch(b1_attr.false, m_attr.quad)
 
     def rule_65(self):
-        # M->null {M.quad=nextquad}
+        # M1->null {M1.quad=nextquad}
         self.attr_stack.append(Attribute(quad=self.next_quad()))
 
     def rule_48(self):
@@ -287,7 +295,7 @@ class Semantic:
     def rule_51(self):
         # B->E Relop E {B.truelist=makelist(nextquad); B.falselist= makelist(nextquad+1) gencode('if' E1.addr relop.op E2.addr 'goto –'); gencode('goto –')}
         e2_addr = self.attr_stack.pop().addr
-        relop_val = self.attr_stack.pop().val
+        relop_val = self.attr_stack.pop().name
         e1_addr = self.attr_stack.pop().addr
         self.attr_stack.append(Attribute(true=[self.next_quad()], false=[self.next_quad() + 1]))
         three_addr = 'if %s %s %s goto ' % (e1_addr, relop_val, e2_addr)
@@ -298,7 +306,7 @@ class Semantic:
     def rule_52_53(self):
         # B->true {B.truelist=makelist(nextquad); gencode('goto –')}
         # B->false {B.falselist=makelist(nextquad); gencode('goto –')}
-        attr_val, make_lst = self.attr_stack.pop().val, [self.next_quad()]
+        attr_val, make_lst = self.attr_stack.pop().name, [self.next_quad()]
         b_attr = Attribute(true=make_lst) if attr_val == 'true' else Attribute(false=make_lst)
         self.attr_stack.append(b_attr)
         self.code[len(self.code)] = ('goto ', 'j _ _ ')
@@ -306,7 +314,7 @@ class Semantic:
     def rule_54_59(self):
         # Relop-><|<=|==|!=|>|>=
         attr = self.attr_stack.pop()
-        self.attr_stack.append(Attribute(val=attr.val))
+        self.attr_stack.append(Attribute(name=attr.name))
 
     """控制流语句的语义动作回填相关"""
 
@@ -336,10 +344,10 @@ class Semantic:
         self.code[len(self.code)] = ('goto ', 'j _ _ ')
 
     def rule_9(self):
-        # S->while M1 B do M2 S1 {backpatch(S1.nextlist, M1.quad); backpatch(B.truelist,M2.quad);S.nextlist=B.falselist; gencode('goto'M1.quad)}
-        s_attr, m2_attr, b_attr, m1_attr = self.attr_stack[-1], self.attr_stack[-2], self.attr_stack[-4], \
-                                           self.attr_stack[-5]
-        self.attr_stack = self.attr_stack[:-6] + [Attribute(next=b_attr.false)]
+        # S->while M1 B do { M2 S1 } {backpatch(S1.nextlist, M1.quad); backpatch(B.truelist,M2.quad);S.nextlist=B.falselist; gencode('goto'M1.quad)}
+        s_attr, m2_attr, b_attr, m1_attr = self.attr_stack[-2], self.attr_stack[-3], self.attr_stack[-6], \
+                                           self.attr_stack[-7]
+        self.attr_stack = self.attr_stack[:-8] + [Attribute(next=b_attr.false)]
         self.back_patch(s_attr.next, m1_attr.quad)
         self.back_patch(b_attr.true, m2_attr.quad)
         self.code[len(self.code)] = ('goto %d' % m1_attr.quad, 'j _ _ %d' % m1_attr.quad)
@@ -360,7 +368,7 @@ class Semantic:
                     'call %s , %d' % (id_val, len(self.para_q)), 'call %s %d _' % (id_val, len(self.para_q)))
                 self.attr_stack = self.attr_stack[:-6] + [Attribute(next=[])]
         else:
-            print('未经声明的函数')
+            print('未经声明的函数%s' % id_val)
 
     def rule_60(self):
         # Elst->Elst,E {将E.addr添加到q的队尾}
@@ -377,44 +385,213 @@ class Semantic:
     def rule_0(self):
         # P'->P
         self.attr_stack.pop()
-        self.attr_stack.append(Attribute(val='P'))
+        self.attr_stack.append(Attribute(name='P'))
 
-    def rule_1_2(self):
-        # P->DP|SP
-        self.attr_stack = self.attr_stack[:-2] + [Attribute(val='P')]
+    def rule_1(self):
+        # P->DP
+        self.attr_stack = self.attr_stack[:-2] + [Attribute(name='P')]
+
+    def rule_2(self):
+        # P-S M1 P
+        s_attr, m_attr = self.attr_stack[-3], self.attr_stack[-2]
+        self.back_patch(s_attr.next, m_attr.quad)
+        self.attr_stack = self.attr_stack[:-3] + [Attribute(name='P')]
 
     def rule_3(self):
         # P->null
-        self.attr_stack.append(Attribute(val='P'))
+        self.attr_stack.append(Attribute(name='P'))
 
     def rule_11(self):
         # D->DD
-        self.attr_stack = self.attr_stack[:-2] + [Attribute(val='D')]
+        self.attr_stack = self.attr_stack[:-2] + [Attribute(name='D')]
 
     def semantic_run(self, tokens, nums_attr):  # 运行语义分析
-        from syntax import Syntax
+        def set_children():  # 由于自底向上分析只能获得父节点，因此需要再次处理，设置子节点
+            for node in all_nodes:
+                if node.parent is not None:
+                    node.parent.add_child(node)
+
+        from syntax import Syntax, SyntaxNode
         syntax = Syntax()
-        syntax.syntax_init('./help/syntax.json')
+        syntax.syntax_init('./help/semantic.json')
+        self.action_init()
+        self.mk_tbl()
 
+        sep, syntax_lst, states, tokens, nodes, all_nodes, syntax_err = ' ', [], [0], tokens + ['$'], ['$'], [], []
+        nums_attr.append('$')
+        while True:
+            top_token, top_state, top_num_attr = tokens[0], states[0], nums_attr[0]
+            if top_token not in syntax.table[top_state]:
+                flag = True
+                for idx, state in enumerate(states):  # 从符号栈自栈顶向下扫描，找到第一个可以跳转的符号以及对应的非终结符A的GOTO目标
+                    for non_term in syntax.non_terminals:
+                        if non_term in syntax.table[state]:
+                            top_state = syntax.table[state][non_term]
+                            for idy, token in enumerate(tokens):  # 忽略输入token，直到找到一个合法的可以跟在A后的token
+                                if token in syntax.table[top_state]:
+                                    symbols = [nodes[count].symbol for count in range(idx)]
+                                    symbols.reverse()
+                                    symbols.extend(tokens[:idy])
+                                    syntax_err.append(
+                                        (top_num_attr[0], top_token + ' : ' + str(top_state), '移入' + sep.join(
+                                            tokens[:idy]) + '  规约' + non_term + ' -> ' + sep.join(symbols)))
+                                    # 移入操作
+                                    for item, num_attr in zip(tokens[:idy], nums_attr[:idy]):
+                                        syntax_node = SyntaxNode(item, line_num=num_attr[0], attribute=num_attr[1])
+                                        all_nodes.append(syntax_node)
+                                        nodes.insert(0, syntax_node)
+                                    syntax_lst.append((sep.join(list(map(str, states))), sep.join(tokens),
+                                                       '错误恢复：移入' + sep.join(tokens[:idy])))
+                                    # 规约操作
+                                    parent_node = SyntaxNode(non_term)
+                                    for syntax_node in nodes[:len(symbols)]:
+                                        syntax_node.set_parent(parent_node)
+                                    all_nodes.append(parent_node)
+                                    syntax_lst.append((sep.join(list(map(str, states))), sep.join(tokens),
+                                                       '错误恢复：规约：' + non_term + ' -> ' + sep.join(symbols)))
 
-    def semantic_action(self):
-        func_dic = {}
-        for func in dir(Semantic):
+                                    # 删除栈顶符号，保留state, 并将goto(s, A)压入栈；忽略输入符号，保留token
+                                    states, nodes = [top_state] + states[idx:], [parent_node] + nodes[len(symbols):]
+                                    nums_attr, tokens, flag = nums_attr[idy:], tokens[idy:], False
+                                    break
+                        if not flag:  # 找到则跳出循环
+                            break
+                    if not flag:  # 找到则跳出循环
+                        break
+            else:
+                op = syntax.table[top_state][top_token].split()
+                if op[0] == 'acc':
+                    syntax_lst.append((sep.join(list(map(str, states))), sep.join(tokens), '成功：' + syntax.start_symbol))
+                    all_nodes.append(syntax.tree)
+                    nodes[0].set_parent(syntax.tree)
+                    set_children()
+                    return syntax_lst, syntax_err
+                elif op[0] == 's':  # 移入
+                    syntax_lst.append((sep.join(list(map(str, states))), sep.join(tokens), '移入：' + top_token))
+                    states.insert(0, int(op[1]))
+                    syntax_node = SyntaxNode(top_token, line_num=top_num_attr[0], attribute=top_num_attr[1])
+                    all_nodes.append(syntax_node)
+                    nodes.insert(0, syntax_node)
+                    tokens.pop(0)
+                    nums_attr.pop(0)
+                    self.attr_stack.append(Attribute(name=top_token, val=top_num_attr[1]))
+                elif op[0] == 'r':  # 规约
+                    non_term, symbols = syntax.rules[int(op[1])]
+                    syntax_lst.append((sep.join(list(map(str, states))), sep.join(tokens),
+                                       '规约：' + non_term + ' -> ' + sep.join(symbols)))
+                    if symbols[0] == syntax.empty_str:  # 空产生式，特殊处理
+                        null_node = SyntaxNode(syntax.empty_str)
+                        all_nodes.append(null_node)
+                        nodes.insert(0, null_node)
+                    parent_node = SyntaxNode(non_term)
+                    all_nodes.append(parent_node)
+                    for syntax_node in nodes[:len(symbols)]:
+                        syntax_node.set_parent(parent_node)
+                    nodes = nodes[len(symbols):]
+                    nodes.insert(0, parent_node)
+                    states = states[len(symbols) if symbols[0] != syntax.empty_str else 0:]
+                    states.insert(0, syntax.table[states[0]][non_term])
+                    # eval(self.action_dic[int(op[1])])  # 执行语义动作
+                    self.action_do(int(op[1]))
+
+    def action_init(self):
+        for func in dir(self):
             if func.startswith('rule_'):
-                item = func.split('_')
+                item, func = func.split('_'), 'self.%s()' % func
                 if len(item) == 2:
-                    func_dic[int(item[1])] = func
+                    self.action_dic[int(item[1])] = func
                 else:
                     idx, idy = int(item[1]), int(item[2])
                     for count in range(idx, idy + 1):
-                        func_dic[count] = func
-        print(len(func_dic))
-        return func_dic
+                        self.action_dic[count] = func
+
+    def action_do(self, index: int):
+        if index == 0:
+            self.rule_0()
+        elif index == 10:
+            self.rule_10()
+        elif index == 11:
+            self.rule_11()
+        elif index == 12:
+            self.rule_12()
+        elif index == 13:
+            self.rule_13()
+        elif index == 14:
+            self.rule_14()
+        elif 15 <= index <= 22:
+            self.rule_15_22()
+        elif index == 1:
+            self.rule_1()
+        elif index == 2:
+            self.rule_2()
+        elif index == 23:
+            self.rule_23()
+        elif index == 24:
+            self.rule_24()
+        elif 25 <= index <= 30:
+            self.rule_25_30()
+        elif index == 3:
+            self.rule_3()
+        elif index == 31:
+            self.rule_31()
+        elif index == 32:
+            self.rule_32()
+        elif index == 33:
+            self.rule_33()
+        elif index == 34:
+            self.rule_34()
+        elif index == 35:
+            self.rule_35()
+        elif 36 <= index <= 38:
+            self.rule_36_38()
+        elif 39 <= index <= 44:
+            self.rule_39_44()
+        elif index == 4:
+            self.rule_4()
+        elif index == 45:
+            self.rule_45()
+        elif index == 46:
+            self.rule_46()
+        elif index == 47:
+            self.rule_47()
+        elif index == 48:
+            self.rule_48()
+        elif index == 49:
+            self.rule_49()
+        elif index == 5:
+            self.rule_5()
+        elif index == 50:
+            self.rule_50()
+        elif index == 51:
+            self.rule_51()
+        elif index in [52, 53]:
+            self.rule_52_53()
+        elif 54 <= index <= 59:
+            self.rule_54_59()
+        elif index == 6:
+            self.rule_6()
+        elif index == 60:
+            self.rule_60()
+        elif index == 61:
+            self.rule_61()
+        elif index == 62:
+            self.rule_62()
+        elif index == 63:
+            self.rule_63()
+        elif index == 64:
+            self.rule_64()
+        elif index == 65:
+            self.rule_65()
+        elif index == 7:
+            self.rule_7()
+        elif index == 8:
+            self.rule_8()
+        elif index == 9:
+            self.rule_9()
 
 
 def main():
     semantic = Semantic()
-    semantic.semantic_action()
 
 
 if __name__ == '__main__':
