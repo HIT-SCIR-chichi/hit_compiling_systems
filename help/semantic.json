@@ -2,7 +2,7 @@
   "start_symbol": "P'",
   "empty_string": "null",
   "terminals": "proc id ; struct int unsigned long char short float double bool { } [ ] = + * - / % ^ ( ) if then else while do or and not true false < <= == != > >= call , $ dec oct hex const_int const_float const_char const_string e-notation",
-  "non_terminals": "P' P S D X C E L B RelOp ELst Num Op",
+  "non_terminals": "P' P S D X C E L B RelOp ELst Num Op N1 N2 N3 M1",
   "rules": {
     "P'": [
       "P"
@@ -13,17 +13,17 @@
       "null"
     ],
     "S": [
-      "S S",
+      "S M1 S",
       "id = E ;",
       "L = E ;",
-      "if B then S",
-      "if B then S else S",
-      "while B do S",
+      "if B then M1 S",
+      "if B then M1 S N3 else M1 S",
+      "while M1 B do M1 S",
       "call id ( ELst ) ;"
     ],
     "D": [
       "D D",
-      "proc id ; D S",
+      "proc id ; N1 D S",
       "X id C ;",
       "struct id { D } ;"
     ],
@@ -72,8 +72,8 @@
       "L [ E ]"
     ],
     "B": [
-      "B or B",
-      "B and B",
+      "B or M1 B",
+      "B and M1 B",
       "not B",
       "( B )",
       "E RelOp E",
@@ -91,6 +91,18 @@
     "ELst": [
       "ELst , E",
       "E"
+    ],
+    "N1": [
+      "null"
+    ],
+    "N2": [
+      "null"
+    ],
+    "N3": [
+      "null"
+    ],
+    "M1": [
+      "null"
     ]
   }
 }

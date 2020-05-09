@@ -149,7 +149,7 @@ class Syntax:
         for idx, item_set in enumerate(self.item_collection):  # 遍历每一个项目集
             for item in item_set:  # 遍历每一个项目
                 non_term, symbol_lst = self.rules[item[0]]  # non_term为非终结符，symbol_lst为右侧文法符号
-                info = ('\t' + str(self.table[idx][item[2]])) if item[2] in self.table[idx] else ''
+                # info = ('\t' + str(self.table[idx][item[2]])) if item[2] in self.table[idx] else ''
                 info = ''
                 if item[1] == len(symbol_lst) and non_term == self.start_symbol and item[2] == '$':
                     self.table[idx][item[2]] = 'acc'  # 成功接收
@@ -255,7 +255,9 @@ class SyntaxNode:
         self.children = [] if children is None else children  # 当前文法符号产生式的右部
         self.parent = None  # 当前符号的父节点
         self.line_num = line_num
-        self.attribute = attribute  # 属性值
+        self.attribute = attribute  # 词法属性值
+
+        self.addr = None
 
     def add_child(self, child):
         self.children.append(child)
