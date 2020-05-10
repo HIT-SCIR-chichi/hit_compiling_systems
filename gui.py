@@ -487,13 +487,13 @@ def set_semantic_win(ui: semantic_res.Ui_Dialog, semantic: Semantic):
     for tbl in semantic.tbl_lst:
         symbol_num += len(tbl)
     ui.symbol_tbl.setRowCount(symbol_num)
-    symbol_num, color = 0, [QColor(255, 0, 0), QColor(0, 255, 255)]
+    symbol_num = 0
     for idx, tbl in enumerate(semantic.tbl_lst):
         for item in tbl.symbol_lst.items():
-            ui.symbol_tbl.setItem(symbol_num, 0, QTableWidgetItem(item[0]))
-            ui.symbol_tbl.setItem(symbol_num, 1, QTableWidgetItem(item[1][0]))
-            ui.symbol_tbl.setItem(symbol_num, 2, QTableWidgetItem(str(item[1][1])))
-            ui.symbol_tbl.item(symbol_num, 0).setForeground(QBrush(color[idx % 2]))
+            ui.symbol_tbl.setItem(symbol_num, 0, QTableWidgetItem(str(idx)))
+            ui.symbol_tbl.setItem(symbol_num, 1, QTableWidgetItem(item[0]))
+            ui.symbol_tbl.setItem(symbol_num, 2, QTableWidgetItem(item[1][0]))
+            ui.symbol_tbl.setItem(symbol_num, 3, QTableWidgetItem(str(item[1][1])))
             symbol_num += 1
 
     ui.code_tbl.setRowCount(len(semantic.code))
@@ -507,7 +507,7 @@ def set_semantic_win(ui: semantic_res.Ui_Dialog, semantic: Semantic):
         for idy, item in enumerate(semantic.err_info[idx]):
             ui.err_tbl.setItem(idx, idy, QTableWidgetItem(str(item)))
 
-    for tbl in [ui.symbol_tbl,ui.code_tbl,ui.err_tbl]:
+    for tbl in [ui.symbol_tbl, ui.code_tbl, ui.err_tbl]:
         tbl.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
 
 

@@ -17,7 +17,8 @@ struct student{ // 记录声明
 };
 proc do_something;{ // 过程声明
     char i;
-    i = d[1][1];}
+    i = d[1][1];
+}
 
 // 表达式及赋值语句：数组元素的引用和赋值
 b = - (10*2) + 3;

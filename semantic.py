@@ -22,8 +22,8 @@ class Attribute:
 
 
 class Tbl:  # 符号表
-    def __init__(self):
-        self.outer_idx = 0  # 外围符号表索引 todo
+    def __init__(self, outer_idx=0):
+        self.outer_idx = outer_idx  # 外围符号表索引
         self.symbol_lst = {}  # {name:(type, offset, width)}
 
     def add_symbol(self, name, type, offset):
@@ -39,7 +39,6 @@ class Tbl:  # 符号表
 class Semantic:
     def __init__(self):
         self.offset = 0  # 偏移量
-        self.symbol = {}  # 符号表
         self.info = {'t': '', 'w': 0}  # 传递语法树信息
 
         self.tbl_lst = []  # 符号表列表，列表元素为Tbl
@@ -57,8 +56,8 @@ class Semantic:
         self.err_info = {}  # 错误信息表
         self.line_num = -1  # 记录行号
 
-    def mk_tbl(self):  # 创建一个符号表，并返回其对应的指针（即位置索引）
-        self.tbl_lst.append(Tbl())  # todo 添加外围符号表标识
+    def mk_tbl(self, outer_idx=0):  # 创建一个符号表，并返回其对应的指针（即位置索引）
+        self.tbl_lst.append(Tbl(outer_idx))
         return len(self.tbl_lst) - 1
 
     def enter(self, index: int, name, type, offset: int):
@@ -66,13 +65,13 @@ class Semantic:
             self.tbl_lst.append([])
         self.tbl_lst[index].add_symbol(name, type, offset)
 
-    def look_up(self, name, index=-1):
-        if index != -1:
-            return self.tbl_lst[index].symbol_lst[name] if name in self.tbl_lst[index] else None
-        else:
-            for idx, tbl in enumerate(self.tbl_lst):
-                if name in tbl:
-                    return self.tbl_lst[idx].symbol_lst[name]  # todo 查询外层引用而非所有引用
+    def look_up(self, name, index):
+        while index != -1:
+            tbl = self.tbl_lst[index]
+            if name in tbl:
+                return tbl.symbol_lst[name]
+            else:
+                index = tbl.outer_idx
 
     def new_temp(self):
         self.temp_ptr += 1
@@ -104,7 +103,7 @@ class Semantic:
 
     def rule_62(self):
         # N1->null，t=mktable(top(tblptr)); push(t, tblptr); push(0, offset)
-        self.tbl_ptr.append(self.mk_tbl())
+        self.tbl_ptr.append(self.mk_tbl(self.tbl_ptr[-1]))
         self.offset_ptr.append(0)
         self.attr_stack.append(Attribute(name='N1'))
 
@@ -134,7 +133,7 @@ class Semantic:
 
     def rule_63(self):
         # N2->null {t=mk_tbl(nil); push(t, tbl_ptr), push(0, offset_ptr)}
-        self.tbl_ptr.append(self.mk_tbl())
+        self.tbl_ptr.append(self.mk_tbl(-1))
         self.offset_ptr.append(0)
         self.attr_stack.append(Attribute(name='N2'))
 
@@ -168,7 +167,7 @@ class Semantic:
         # S->id=E; {p=lookup(id.lexeme); if p==nil then error; gencode(p'='E.addr); S.nextlist=null}
         id_val, e_addr = self.attr_stack[-4].val, self.attr_stack[-2].addr
         self.attr_stack = self.attr_stack[:-4] + [Attribute(next=[])]
-        if not self.look_up(id_val):
+        if not self.look_up(id_val, self.tbl_ptr[-1]):
             self.err_info[len(self.err_info)] = (self.line_num, '变量未经声明%s' % id_val, '创建默认声明')
             offset, type = 4, 'int'
             self.enter(self.tbl_ptr[-1], id_val, type, self.offset_ptr[-1])
@@ -189,10 +188,14 @@ class Semantic:
         # E->E Op E {E.addr=newtemp(); gencode(E.addr '=' E1.addr 'op' E2.addr);}
         new_temp = self.new_temp()  # todo 类型判断与自动转换
         e1_attr, op_attr, e2_attr = self.attr_stack[-3], self.attr_stack[-2], self.attr_stack[-1]
-        three_addr = '%s = %s %s %s' % (new_temp, e1_attr.addr, op_attr.name, e2_attr.addr)
-        quaternion = '%s %s %s %s' % (op_attr.name, e1_attr.addr, e2_attr.addr, new_temp)
-        self.code[len(self.code)] = (three_addr, quaternion)
-        self.attr_stack = self.attr_stack[:-3] + [Attribute(addr=new_temp, type=e1_attr.type)]
+        if ('array' in e1_attr.type and 'array' not in e2_attr.type) or (
+                'array' in e2_attr.type and 'array' not in e2_attr.type):
+            print('cuowu')
+        else:
+            three_addr = '%s = %s %s %s' % (new_temp, e1_attr.addr, op_attr.name, e2_attr.addr)
+            quaternion = '%s %s %s %s' % (op_attr.name, e1_attr.addr, e2_attr.addr, new_temp)
+            self.code[len(self.code)] = (three_addr, quaternion)
+            self.attr_stack = self.attr_stack[:-3] + [Attribute(addr=new_temp, type=e1_attr.type)]
 
     def rule_32(self):
         # E->-E {E.addr=newtemp(); gencode(E.addr'=''uminus'E1.addr)}
@@ -208,7 +211,7 @@ class Semantic:
     def rule_34(self):
         # E->id {E.addr=lookup(id.lexeme); if E.addr==null then error;}
         id_val = self.attr_stack.pop().val
-        id_info = self.look_up(id_val)
+        id_info = self.look_up(id_val, self.tbl_ptr[-1])
         if not id_info:
             self.err_info[len(self.err_info)] = (self.line_num, '变量未经声明%s' % id_val, '创建默认声明')
             offset, type = 4, 'int'
@@ -241,7 +244,7 @@ class Semantic:
     def rule_45(self):
         # L->id[E] {L.array=lookup(id.lexeme); if L.array==nil then error; L.type=L.array.type.elem; L.offset=newtemp(); gencode(L.offset'='E.addr'*'L.type.width);}
         id, e_attr = self.attr_stack[-4], self.attr_stack[-2]
-        l_symbol = self.look_up(id.val)
+        l_symbol = self.look_up(id.val, self.tbl_ptr[-1])
         if l_symbol:
             if 'array' in l_symbol[0]:
                 if e_attr.name in ['const_char', 'const_string', 'const_float', 'e-notation']:
@@ -289,7 +292,7 @@ class Semantic:
         else:
             self.attr_stack = self.attr_stack[:-4] + [Attribute(name='L', err=True)]
 
-    """布尔表达式语句的回填相关语义动作"""
+    """布尔表达式语句的回填相关语义动作 =*"""
 
     def rule_47(self):
         # B->B1 or M B2 {backpatch(B1.falselist,M.quad); B.truelist=merge(B1.truelist,B2.truelist); B.falselist=B2.falselist}
@@ -373,7 +376,7 @@ class Semantic:
         self.back_patch(b_attr.false, m2_attr.quad)
 
     def rule_64(self):
-        # N->null {N.nextlist=makelist(nextquad); gencode('goto –')}
+        # N3->null {N3.nextlist=makelist(nextquad); gencode('goto –')}
         self.attr_stack.append(Attribute(next=[self.next_quad()]))
         self.code[len(self.code)] = ('goto ', 'j _ _ ')
 
@@ -392,7 +395,7 @@ class Semantic:
         # S->call id ( Elst ) ;   {n=0; for queue中的每个t do {gencode('param't); n=n+1} gencode('call'id.addr','n);} {S.nextlist=null;}
         elst_attr, id_val = self.attr_stack[-3], self.attr_stack[-5].val
         self.attr_stack = self.attr_stack[:-6] + [Attribute(next=[])]
-        res = self.look_up(id_val)
+        res = self.look_up(id_val, self.tbl_ptr[-1])
         if res:
             if res[0] != 'proc':
                 self.err_info[len(self.err_info)] = (self.line_num, '对非过程名使用过程调用操作符%s' % id_val, '忽略该调用')
@@ -426,7 +429,7 @@ class Semantic:
         self.attr_stack = self.attr_stack[:-2] + [Attribute(name='P')]
 
     def rule_2(self):
-        # P-S M1 P
+        # P->S M1 P
         s_attr, m_attr = self.attr_stack[-3], self.attr_stack[-2]
         self.back_patch(s_attr.next, m_attr.quad)
         self.attr_stack = self.attr_stack[:-3] + [Attribute(name='P')]
@@ -447,7 +450,7 @@ class Semantic:
 
         from syntax import SyntaxNode
         self.action_init()
-        self.mk_tbl()
+        self.mk_tbl(-1)
 
         sep, syntax_lst, states, tokens, nodes, all_nodes, syntax_err = ' ', [], [0], tokens + ['$'], ['$'], [], []
         nums_attr.append('$')
